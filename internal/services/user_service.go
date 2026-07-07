@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"eglise_ujn/internal/models"
@@ -55,11 +56,13 @@ func (s *UserService) Create(ctx context.Context, in CreateUserInput, by string)
 	}
 	for _, rk := range in.Roles {
 		var role models.Role
-		if err := s.db.Where("key = ?", rk).First(&role).Error; err != nil {
-			continue
+		if err := s.db.WithContext(ctx).Where(models.Role{Key: rk}).First(&role).Error; err != nil {
+			return nil, fmt.Errorf("role %s introuvable: %w", rk, err)
 		}
 		ur := models.UserRole{UserID: u.ID, RoleID: role.ID}
-		_ = s.db.Create(&ur).Error
+		if err := s.db.WithContext(ctx).Create(&ur).Error; err != nil {
+			return nil, err
+		}
 	}
 	return s.GetByID(ctx, u.ID)
 }
@@ -88,7 +91,7 @@ func (s *UserService) Update(ctx context.Context, userID uint, in UpdateUserInpu
 		}
 		for _, rk := range in.Roles {
 			var role models.Role
-			if err := tx.Where("key = ?", rk).First(&role).Error; err != nil {
+			if err := tx.Where(models.Role{Key: rk}).First(&role).Error; err != nil {
 				continue
 			}
 			if err := tx.Create(&models.UserRole{UserID: userID, RoleID: role.ID}).Error; err != nil {
@@ -126,7 +129,7 @@ func (s *UserService) Delete(ctx context.Context, userID uint, by string) error 
 
 func (s *UserService) ToggleRole(ctx context.Context, userID uint, roleKey models.RoleKey) error {
 	var role models.Role
-	if err := s.db.Where("key = ?", roleKey).First(&role).Error; err != nil {
+	if err := s.db.Where(models.Role{Key: roleKey}).First(&role).Error; err != nil {
 		return err
 	}
 	var existing models.UserRole
