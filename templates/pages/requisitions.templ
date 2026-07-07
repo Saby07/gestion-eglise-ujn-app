@@ -1,0 +1,121 @@
+package pages
+
+import (
+	"eglise_ujn/internal/models"
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/viewmodels"
+	"fmt"
+)
+
+templ RequisitionsList(vm viewmodels.LayoutVM, list []models.Requisition, filter string) {
+	@AppLayoutDataTables(vm, requisitionsListBody(vm, list, filter))
+}
+
+templ requisitionsListBody(vm viewmodels.LayoutVM, list []models.Requisition, filter string) {
+	@components.PageHeader("Réquisitions", "Réquisitions")
+	<div class="mb-3 d-flex flex-wrap gap-2">
+		if vm.IsStaffOnly() {
+			<a href="/requisitions" class={ "btn", btnClass(filter == "all") }>Toutes</a>
+			<a href="/requisitions?filter=completed" class={ "btn", btnClass(filter == "completed") }>Terminées</a>
+			<a href="/requisitions?filter=cancelled" class={ "btn", btnClass(filter == "cancelled") }>Annulées</a>
+		} else {
+			<a href="/requisitions" class={ "btn", btnClass(filter == "all") }>Toutes</a>
+			<a href="/requisitions?filter=mine" class={ "btn", btnClass(filter == "mine") }>Mes réquisitions</a>
+			<a href="/requisitions?filter=pending_validation" class={ "btn", btnClass(filter == "pending_validation") }>À valider</a>
+			<a href="/requisitions?filter=pending_disbursement" class={ "btn", btnClass(filter == "pending_disbursement") }>À décaisser</a>
+			<a href="/requisitions?filter=completed" class={ "btn", btnClass(filter == "completed") }>Terminées</a>
+			<a href="/requisitions?filter=cancelled" class={ "btn", btnClass(filter == "cancelled") }>Annulées</a>
+		}
+		if vm.CanCreateRequisition() {
+			<a href="/requisitions/new" class="btn btn-label btn-success waves-effect waves-light ms-auto">
+				<i class="ri-add-line label-icon"></i>
+				Nouvelle réquisition
+			</a>
+		}
+	</div>
+	<div class="card">
+		<div class="card-body app-datatable-card">
+			<table id="requisitions-datatable" class="table table-hover table-sm table-striped align-middle dt-responsive nowrap w-100">
+				<thead class="table-light">
+					<tr>
+						<th>#</th>
+						<th>Titre</th>
+						<th>Auteur</th>
+						<th class="text-end">Date</th>
+						<th class="text-end">Montant</th>
+						<th class="text-end">Étape</th>
+						<th class="text-end">Action</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range list {
+						<tr>
+							<td>{ fmt.Sprintf("%d", r.ID) }</td>
+							<td>{ r.Title }</td>
+							<td class="text-start">{ r.User.FullName() }</td>
+							<td class="text-end" data-order={ r.RequisitionDate.Format("2006-01-02") }>{ r.RequisitionDate.Format("02/01/2006") }</td>
+							<td class="text-end" data-order={ fmt.Sprintf("%.2f", r.TotalAmount) }>{ fmt.Sprintf("%.2f", r.TotalAmount) } $</td>
+							<td class="text-end"><span class={ "badge", viewmodels.StatusClass(r.Status, r.CurrentStep) }>{ viewmodels.StepLabel(r.CurrentStep) }</span></td>
+							<td class="text-end"><a href={ fmt.Sprintf("/requisitions/%d", r.ID) } class="btn btn-sm btn-soft-primary">Voir</a></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+func btnClass(active bool) string {
+	if active {
+		return "btn-primary"
+	}
+	return "btn-soft-secondary"
+}
+
+templ RequisitionForm(vm viewmodels.LayoutVM) {
+	@AppLayout(vm, requisitionFormBody(vm))
+}
+
+templ requisitionFormBody(vm viewmodels.LayoutVM) {
+	@components.PageHeader("Nouvelle réquisition", "Réquisitions")
+	<div class="card">
+		<div class="card-body">
+			<form method="post" action="/requisitions" id="req-form">
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<div class="row g-3 mb-3">
+					<div class="col-md-6">
+						<label class="form-label">Titre <span class="text-danger">*</span></label>
+						<input name="title" class="form-control" required/>
+					</div>
+					<div class="col-md-4">
+						<label class="form-label">Date <span class="text-danger">*</span></label>
+						<input type="date" name="date" class="form-control" required/>
+					</div>
+				</div>
+				<h5 class="mb-3">Articles <span class="text-danger">*</span></h5>
+				<div id="items-container">
+					<div class="row g-2 mb-2 item-row">
+						<div class="col-md-5"><input name="designation" class="form-control" placeholder="Désignation" required/></div>
+						<div class="col-md-2"><input type="number" step="0.01" name="quantity" class="form-control" placeholder="Qté" required/></div>
+						<div class="col-md-3"><input type="number" step="0.01" name="unit_price" class="form-control" placeholder="Prix unitaire" required/></div>
+					</div>
+				</div>
+				<button type="button" class="btn btn-sm btn-soft-secondary mb-3" onclick="addItemRow()">+ Ajouter une ligne</button>
+				<div>
+					<button class="btn btn-success">Soumettre la réquisition</button>
+				</div>
+			</form>
+		</div>
+	</div>
+	<script>
+		function addItemRow() {
+			var c = document.getElementById('items-container');
+			var row = document.createElement('div');
+			row.className = 'row g-2 mb-2 item-row';
+			row.innerHTML = '<div class="col-md-5"><input name="designation" class="form-control" placeholder="Désignation" required></div>' +
+				'<div class="col-md-2"><input type="number" step="0.01" name="quantity" class="form-control" placeholder="Qté" required></div>' +
+				'<div class="col-md-3"><input type="number" step="0.01" name="unit_price" class="form-control" placeholder="Prix unitaire" required></div>';
+			c.appendChild(row);
+		}
+	</script>
+}

@@ -1,0 +1,35 @@
+package components
+
+import "eglise_ujn/templates/viewmodels"
+
+templ WorkflowTracker(steps []viewmodels.WorkflowStepVM) {
+	<div class="workflow-tracker mb-4">
+		<div class="workflow-tracker-inner">
+			for i, s := range steps {
+				<div class={ "workflow-step", viewmodels.WorkflowStepClass(s.Key), templ.KV("is-done", s.Done), templ.KV("is-active", s.Active && !s.Done), templ.KV("is-pending", !s.Done && !s.Active) }>
+					<div class="workflow-step-indicator">
+						if s.Done {
+							<i class="ri-check-line"></i>
+						} else {
+							<i class={ viewmodels.WorkflowStepIcon(s.Key) }></i>
+						}
+					</div>
+					<div class="workflow-step-body">
+						<span class="workflow-step-label">{ s.Label }</span>
+						if s.Validator != "" {
+							<span class="workflow-step-meta">{ s.Validator }</span>
+							<span class="workflow-step-date">{ s.Date }</span>
+						} else if s.Active {
+							<span class="workflow-step-meta workflow-step-meta--active">En cours</span>
+						} else {
+							<span class="workflow-step-meta">En attente</span>
+						}
+					</div>
+					if i < len(steps)-1 {
+						<div class={ "workflow-step-connector", templ.KV("is-filled", s.Done) }></div>
+					}
+				</div>
+			}
+		</div>
+	</div>
+}

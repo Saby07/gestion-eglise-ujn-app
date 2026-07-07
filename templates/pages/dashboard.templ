@@ -1,0 +1,124 @@
+package pages
+
+import (
+	"eglise_ujn/internal/models"
+	"eglise_ujn/internal/services"
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/viewmodels"
+	"fmt"
+)
+
+templ Dashboard(vm viewmodels.LayoutVM, m *services.DashboardMetrics, user *models.User) {
+	@AppLayoutCharts(vm, dashboardBody(m, user))
+}
+
+templ dashboardBody(m *services.DashboardMetrics, user *models.User) {
+	@components.PageHeader("Tableau de bord", "")
+	<div class="row">
+		if user != nil && user.CanViewAccountBalance() {
+			<div class="col-xl-3 col-md-6">
+				<div class="card card-animate">
+					<div class="card-body">
+						<p class="text-uppercase fw-medium text-muted mb-0">Solde comptes</p>
+						<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%.2f USD", m.AccountBalance) }</h4>
+					</div>
+				</div>
+			</div>
+		} else if user != nil && user.HasRole(models.RoleSuperAdmin) {
+			<div class="col-xl-3 col-md-6">
+				<div class="card card-animate">
+					<div class="card-body">
+						<p class="text-uppercase fw-medium text-muted mb-0">Réquisitions totales</p>
+						<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%d", m.TotalRequisitionsCount) }</h4>
+					</div>
+				</div>
+			</div>
+		} else if user != nil {
+			<div class="col-xl-3 col-md-6">
+				<div class="card card-animate">
+					<div class="card-body">
+						<p class="text-uppercase fw-medium text-muted mb-0">Mes réquisitions</p>
+						<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%d", m.MyRequisitionsCount) }</h4>
+					</div>
+				</div>
+			</div>
+		}
+		<div class="col-xl-3 col-md-6">
+			<div class="card card-animate">
+				<div class="card-body">
+					<p class="text-uppercase fw-medium text-muted mb-0">En validation</p>
+					<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%d", m.PendingRequisitions) }</h4>
+				</div>
+			</div>
+		</div>
+		<div class="col-xl-3 col-md-6">
+			<div class="card card-animate">
+				<div class="card-body">
+					<p class="text-uppercase fw-medium text-muted mb-0">À décaisser</p>
+					<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%d", m.PendingDisbursement) }</h4>
+				</div>
+			</div>
+		</div>
+		<div class="col-xl-3 col-md-6">
+			<div class="card card-animate">
+				<div class="card-body">
+					<p class="text-uppercase fw-medium text-muted mb-0">Décaissé ce mois</p>
+					<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%.2f USD", m.DisbursedMonth) }</h4>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="row">
+		<div class="col-xl-8">
+			<div class="card">
+				<div class="card-header"><h4 class="card-title mb-0">Décaissements (7 jours)</h4></div>
+				<div class="card-body">
+					<div id="disbursement-chart" data-labels={ chartLabelsJSON(m) } data-values={ chartValuesJSON(m) }></div>
+				</div>
+			</div>
+		</div>
+		<div class="col-xl-4">
+			<div class="card">
+				<div class="card-header"><h4 class="card-title mb-0">Actions rapides</h4></div>
+				<div class="card-body d-grid gap-2">
+					if user != nil && (user.HasRole(models.RoleStaff) || user.HasRole(models.RoleAdmin)) {
+						<a href="/requisitions/new" class="btn btn-primary">Nouvelle réquisition</a>
+					}
+					<a href="/requisitions?filter=pending_validation" class="btn btn-warning">Validations en attente</a>
+					<a href="/requisitions?filter=pending_disbursement" class="btn btn-info">Prêtes au décaissement</a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script>
+		document.addEventListener('DOMContentLoaded', function() {
+			var el = document.getElementById('disbursement-chart');
+			if (!el || typeof ApexCharts === 'undefined') return;
+			var labels = JSON.parse(el.dataset.labels || '[]');
+			var values = JSON.parse(el.dataset.values || '[]');
+			new ApexCharts(el, {
+				chart: { type: 'bar', height: 320, toolbar: { show: false } },
+				series: [{ name: 'Décaissements', data: values }],
+				xaxis: { categories: labels },
+				colors: ['#405189'],
+				dataLabels: { enabled: false }
+			}).render();
+		});
+	</script>
+}
+
+func chartLabelsJSON(m *services.DashboardMetrics) string {
+	if m == nil || len(m.ChartLabels) == 0 {
+		return "[]"
+	}
+	b, _ := jsonMarshal(m.ChartLabels)
+	return string(b)
+}
+
+func chartValuesJSON(m *services.DashboardMetrics) string {
+	if m == nil || len(m.ChartValues) == 0 {
+		return "[]"
+	}
+	b, _ := jsonMarshal(m.ChartValues)
+	return string(b)
+}

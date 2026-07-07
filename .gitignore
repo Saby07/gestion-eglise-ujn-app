@@ -1,0 +1,56 @@
+# ── Secrets & configuration locale ───────────────────────────
+.env
+.env.local
+.env.*.local
+
+# Garder le modèle versionné : .env.example
+
+# ── Base de données SQLite ───────────────────────────────────
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# ── Fichiers uploadés (factures, reçus, etc.) ──────────────
+uploads/*
+!uploads/.gitkeep
+
+# ── Binaires Go ──────────────────────────────────────────────
+/eglise_ujn
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Tests & couverture
+*.test
+*.out
+coverage.out
+coverage.html
+
+# ── Outils de dev ────────────────────────────────────────────
+.air.toml.bak
+tmp/
+
+# ── IDE & éditeurs ───────────────────────────────────────────
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# ── Système ──────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+Desktop.ini
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log

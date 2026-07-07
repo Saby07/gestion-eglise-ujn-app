@@ -1,0 +1,46 @@
+package pages
+
+import (
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/layouts"
+	"eglise_ujn/templates/viewmodels"
+)
+
+templ AppLayout(vm viewmodels.LayoutVM, content templ.Component) {
+	@layouts.Base(vm.Title, layouts.Head(), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), layouts.Scripts(), appContent(vm, content))
+}
+
+templ appContent(vm viewmodels.LayoutVM, content templ.Component) {
+	<div class="container-fluid">
+		@components.Alert(vm.Alert)
+		@content
+	</div>
+}
+
+templ AppLayoutCharts(vm viewmodels.LayoutVM, content templ.Component) {
+	@layouts.Base(vm.Title, layouts.Head(), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), chartScripts(), appContent(vm, content))
+}
+
+templ AppLayoutDataTables(vm viewmodels.LayoutVM, content templ.Component) {
+	@layouts.Base(vm.Title, dataTablesHead(), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), dataTablesScripts(), appContent(vm, content))
+}
+
+templ dataTablesHead() {
+	@layouts.Head()
+	<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css"/>
+	<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap.min.css"/>
+}
+
+templ dataTablesScripts() {
+	@layouts.Scripts()
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+	<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+	<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+	<script src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+	<script src="/assets/js/pages/app-datatables.init.js"></script>
+}
+
+templ chartScripts() {
+	@layouts.Scripts()
+	<script src="/assets/libs/apexcharts/apexcharts.min.js"></script>
+}

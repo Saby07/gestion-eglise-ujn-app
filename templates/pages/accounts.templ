@@ -1,0 +1,130 @@
+package pages
+
+import (
+	"eglise_ujn/internal/models"
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/viewmodels"
+	"fmt"
+)
+
+templ AccountsList(vm viewmodels.LayoutVM, accounts []models.ChurchAccount) {
+	@AppLayout(vm, accountsListBody(vm, accounts))
+}
+
+templ accountsListBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount) {
+	@components.PageHeader("Comptes de l'église", "Comptes")
+	<div class="mb-3">
+		<a href="/accounts/new" class="btn btn-primary">Nouveau compte</a>
+	</div>
+	<div class="row">
+		for _, a := range accounts {
+			<div class="col-xl-4 col-md-6">
+				<div class="card">
+					<div class="card-body">
+						<h5 class="card-title">{ a.Name }</h5>
+						<p class="text-muted mb-2">{ a.Description }</p>
+						<h3 class="text-primary">{ fmt.Sprintf("%.2f %s", a.Balance, a.Currency) }</h3>
+						<a href={ fmt.Sprintf("/accounts/%d", a.ID) } class="btn btn-sm btn-soft-primary">Détails & historique</a>
+					</div>
+				</div>
+			</div>
+		}
+	</div>
+}
+
+templ AccountForm(vm viewmodels.LayoutVM) {
+	@AppLayout(vm, accountFormBody(vm))
+}
+
+templ accountFormBody(vm viewmodels.LayoutVM) {
+	@components.PageHeader("Nouveau compte", "Comptes")
+	<div class="card">
+		<div class="card-body">
+			<form method="post" action="/accounts">
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<div class="mb-3">
+					<label class="form-label">Nom du compte</label>
+					<input name="name" class="form-control" required/>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">Description</label>
+					<textarea name="description" class="form-control" rows="2"></textarea>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">Devise</label>
+					<input name="currency" class="form-control" value="USD"/>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">Montant initial (optionnel)</label>
+					<input type="number" step="0.01" name="initial_amount" class="form-control"/>
+				</div>
+				<button class="btn btn-success">Créer</button>
+			</form>
+		</div>
+	</div>
+}
+
+templ AccountDetail(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64) {
+	@AppLayout(vm, accountDetailBody(vm, acc, hist, balance, projected))
+}
+
+templ accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64) {
+	@components.PageHeader(acc.Name, "Comptes")
+	<div class="row mb-4">
+		<div class="col-md-4">
+			<div class="card bg-primary text-white">
+				<div class="card-body">
+					<p class="mb-1">Solde actuel</p>
+					<h3 class="text-white">{ fmt.Sprintf("%.2f %s", balance, acc.Currency) }</h3>
+				</div>
+			</div>
+		</div>
+		<div class="col-md-4">
+			<div class="card bg-info text-white">
+				<div class="card-body">
+					<p class="mb-1">Solde projeté (après réquisitions en attente)</p>
+					<h3 class="text-white">{ fmt.Sprintf("%.2f %s", projected, acc.Currency) }</h3>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="card mb-4">
+		<div class="card-header">Approvisionner le compte</div>
+		<div class="card-body">
+			<form method="post" action={ fmt.Sprintf("/accounts/%d/fund", acc.ID) } class="row g-2">
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<div class="col-md-4">
+					<input type="number" step="0.01" name="amount" class="form-control" placeholder="Montant" required/>
+				</div>
+				<div class="col-md-6">
+					<input name="label" class="form-control" placeholder="Libellé"/>
+				</div>
+				<div class="col-md-2">
+					<button class="btn btn-success w-100">Ajouter</button>
+				</div>
+			</form>
+		</div>
+	</div>
+	<div class="card">
+		<div class="card-header">Historique</div>
+		<div class="card-body table-responsive">
+			<table class="table table-striped table-sm">
+				<thead class="table-light">
+					<tr><th>Date</th><th>Type</th><th>Montant</th><th>Avant</th><th>Après</th><th>Libellé</th></tr>
+				</thead>
+				<tbody>
+					for _, t := range hist {
+						<tr>
+							<td>{ t.CreatedAt.Format("02/01/2006 15:04") }</td>
+							<td>{ t.Type.Label() }</td>
+							<td>{ fmt.Sprintf("%.2f", t.Amount) }</td>
+							<td>{ fmt.Sprintf("%.2f", t.BalanceBefore) }</td>
+							<td>{ fmt.Sprintf("%.2f", t.BalanceAfter) }</td>
+							<td>{ t.Label }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}

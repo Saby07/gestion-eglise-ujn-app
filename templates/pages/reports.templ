@@ -1,0 +1,63 @@
+package pages
+
+import (
+	"eglise_ujn/internal/services"
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/viewmodels"
+	"fmt"
+)
+
+templ Reports(vm viewmodels.LayoutVM, period, label string, rows []services.DisbursementReportRow, total float64) {
+	@AppLayoutDataTables(vm, reportsBody(vm, period, label, rows, total))
+}
+
+templ reportsBody(vm viewmodels.LayoutVM, period, label string, rows []services.DisbursementReportRow, total float64) {
+	@components.PageHeader("Rapports de décaissement", "Rapports")
+	<div class="mb-3 d-flex gap-2">
+		<a href="/reports?period=daily" class={ "btn btn-sm", reportBtn(period == "daily") }>Journalier</a>
+		<a href="/reports?period=weekly" class={ "btn btn-sm", reportBtn(period == "weekly") }>Hebdomadaire</a>
+		<a href="/reports?period=monthly" class={ "btn btn-sm", reportBtn(period == "monthly") }>Mensuel</a>
+		<a href="/reports?period=yearly" class={ "btn btn-sm", reportBtn(period == "yearly") }>Annuel</a>
+	</div>
+	<div class="card mb-3">
+		<div class="card-body">
+			<h5>{ label }</h5>
+			<p class="text-muted mb-0">Total décaissé: <strong>{ fmt.Sprintf("%.2f USD", total) }</strong></p>
+		</div>
+	</div>
+	<div class="card">
+		<div class="card-body app-datatable-card">
+			<table id="reports-datatable" class="table table-striped table-sm align-middle dt-responsive nowrap w-100">
+				<thead class="table-light">
+					<tr>
+						<th>N°</th>
+						<th>Date</th>
+						<th>Réquisition</th>
+						<th>Mode</th>
+						<th>Montant</th>
+						<th>Par</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td>{ fmt.Sprintf("#%d", r.RequisitionID) }</td>
+							<td data-order={ r.DisbursedAt.Format("2006-01-02T15:04:05") }>{ r.DisbursedAt.Format("02/01/2006 15:04") }</td>
+							<td>{ r.Title }</td>
+							<td>{ r.PaymentMode.Label() }</td>
+							<td class="text-end" data-order={ fmt.Sprintf("%.2f", r.Amount) }>{ fmt.Sprintf("%.2f", r.Amount) } $</td>
+							<td class="text-end">{ r.DisbursedBy }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+func reportBtn(active bool) string {
+	if active {
+		return "btn-primary"
+	}
+	return "btn-soft-secondary"
+}

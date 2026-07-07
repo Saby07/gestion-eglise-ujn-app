@@ -1,0 +1,45 @@
+package pages
+
+import "eglise_ujn/templates/layouts"
+
+templ Login(alert, csrf string) {
+	<!doctype html>
+	<html lang="fr" data-layout="vertical" data-topbar="light" data-sidebar="dark">
+		<head>
+			@layouts.Head()
+			<title>Connexion | Église UJN - mangement</title>
+		</head>
+		<body>
+			<div class="auth-page-wrapper pt-5">
+				<div class="auth-page-content">
+					<div class="container">
+						<div class="row justify-content-center">
+							<div class="col-md-8 col-lg-6 col-xl-5">
+								<div class="card mt-4">
+									<div class="card-body p-4">
+										if alert != "" {
+											<div class="alert alert-danger">{ alert }</div>
+										}
+										<form action="/login" method="post" class="p-2 mt-4">
+											<input type="hidden" name="csrf_token" value={ csrf }/>
+											<div class="mb-3">
+												<label class="form-label">Email</label>
+												<input type="email" name="email" class="form-control" required placeholder="email@exemple.com"/>
+											</div>
+											<div class="mb-3">
+												<label class="form-label">Mot de passe</label>
+												<input type="password" name="password" class="form-control" placeholder="**************" required/>
+											</div>
+											<button class="btn btn-dark w-100" type="submit">Connexion</button>
+										</form>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			@layouts.Scripts()
+		</body>
+	</html>
+}

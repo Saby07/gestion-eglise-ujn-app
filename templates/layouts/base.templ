@@ -1,0 +1,38 @@
+package layouts
+
+templ Base(title string, head templ.Component, top_header templ.Component, menu templ.Component, footer templ.Component, scripts templ.Component, content templ.Component) {
+    <!doctype html>
+    <html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="dark" data-sidebar-size="lg" data-sidebar-image="none" data-preloader="disable">
+        <head>
+            @head
+            <title>{ title }</title>
+        </head>
+        <body>
+            <div id="layout-wrapper">
+                <header id="page-topbar"> 
+                    @top_header
+                </header>
+
+                <div class="app-menu navbar-menu">
+                    @menu
+                </div>
+                <div class="vertical-overlay"></div>
+
+                <div class="main-content">
+                    <div class="page-content">
+                        @content
+                    </div>
+                    <footer class="footer">
+                        @footer
+                    </footer>
+                </div>
+            </div>
+
+            <!--start back-to-top-->
+            <button onclick="topFunction()" class="btn btn-danger btn-icon" id="back-to-top">
+                <i class="ri-arrow-up-line"></i>
+            </button>
+            @scripts
+        </body>
+    </html>
+}
