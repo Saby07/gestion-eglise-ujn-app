@@ -38,7 +38,7 @@ func Run(db *gorm.DB, cfg Config) error {
 		return err
 	}
 	if count > 0 {
-		return nil
+		return ensureUserRole(db, cfg.AdminEmail, models.RoleSuperAdmin)
 	}
 
 	userSvc := services.NewUserService(db)
@@ -101,5 +101,30 @@ func seedRoles(db *gorm.DB) error {
 	}
 
 	log.Printf("[seed] %d rôles disponibles", count)
+	return nil
+}
+
+func ensureUserRole(db *gorm.DB, email string, roleKey models.RoleKey) error {
+	var user models.User
+	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	var role models.Role
+	if err := db.Where(models.Role{Key: roleKey}).First(&role).Error; err != nil {
+		return fmt.Errorf("role %s introuvable: %w", roleKey, err)
+	}
+
+	var link models.UserRole
+	result := db.Where(models.UserRole{UserID: user.ID, RoleID: role.ID}).FirstOrCreate(&link)
+	if result.Error != nil {
+		return fmt.Errorf("user_role %s/%s: %w", email, roleKey, result.Error)
+	}
+	if result.RowsAffected > 0 {
+		log.Printf("[seed] rôle %s attribué à %s", roleKey, email)
+	}
 	return nil
 }
