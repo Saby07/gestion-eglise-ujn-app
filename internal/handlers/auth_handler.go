@@ -43,15 +43,13 @@ func (h *AuthHandler) LoginPost(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/login?alert=Config+JWT")
 		return
 	}
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetCookie(jcfg.CookieName, token, int(jcfg.TTL.Seconds()), jcfg.CookiePath, "", secure, jcfg.CookieHTTPOnly)
+	middlewares.SetAuthCookie(c, jcfg.CookieName, token, int(jcfg.TTL.Seconds()))
 	c.Redirect(http.StatusFound, "/dashboard")
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	jcfg, _ := config.LoadJWTConfig()
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetCookie(jcfg.CookieName, "", -1, jcfg.CookiePath, "", secure, true)
+	middlewares.SetAuthCookie(c, jcfg.CookieName, "", -1)
 	c.Redirect(http.StatusFound, "/login")
 }
 

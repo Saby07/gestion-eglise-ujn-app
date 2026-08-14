@@ -89,12 +89,17 @@ func CSRFMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		if err := c.Request.ParseForm(); err != nil {
+			c.String(http.StatusForbidden, "CSRF invalide")
+			c.Abort()
+			return
+		}
 		form := c.PostForm("csrf_token")
 		if form == "" && strings.HasPrefix(c.GetHeader("Content-Type"), "multipart/form-data") {
 			_ = c.Request.ParseMultipartForm(32 << 20)
 			form = c.PostForm("csrf_token")
 		}
-		cookie, _ := c.Cookie("csrf_token")
+		cookie, _ := c.Cookie(csrfCookieName)
 		if err := config.ValidateCSRF(form, cookie); err != nil {
 			c.String(http.StatusForbidden, "CSRF invalide")
 			c.Abort()
@@ -104,12 +109,55 @@ func CSRFMiddleware() gin.HandlerFunc {
 	}
 }
 
+const csrfCookieName = "csrf_token"
+
 func SetCSRFCookie(c *gin.Context) string {
+	if existing, err := c.Cookie(csrfCookieName); err == nil && isValidCSRFToken(existing) {
+		return existing
+	}
 	token, err := config.NewCSRFToken()
 	if err != nil {
 		return ""
 	}
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetCookie("csrf_token", token, 3600, "/", "", secure, true)
+	writeCSRFCookie(c, token)
 	return token
+}
+
+func isValidCSRFToken(token string) bool {
+	token = strings.TrimSpace(token)
+	return len(token) >= 32 && len(token) <= 64
+}
+
+func writeCSRFCookie(c *gin.Context, token string) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     csrfCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   3600,
+		HttpOnly: true,
+		Secure:   requestUsesSecureCookies(c),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func requestUsesSecureCookies(c *gin.Context) bool {
+	if config.SecureCookies() {
+		return true
+	}
+	if c.Request.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https")
+}
+
+func SetAuthCookie(c *gin.Context, name, value string, maxAge int) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   requestUsesSecureCookies(c),
+		SameSite: http.SameSiteLaxMode,
+	})
 }

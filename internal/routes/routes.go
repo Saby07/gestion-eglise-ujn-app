@@ -69,7 +69,7 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 	accounts.GET("/new", accountsH.NewPage)
 	accounts.POST("", accountsH.Create)
 	accounts.GET("/:id", accountsH.Detail)
-	accounts.POST("/:id/fund", accountsH.Fund)
+	accounts.POST("/:id/fund", middlewares.RequireRoles(models.RoleAccountant), accountsH.Fund)
 
 	// Réquisitions
 	req := auth.Group("/requisitions")

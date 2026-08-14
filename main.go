@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"eglise_ujn/internal/config"
 	"eglise_ujn/internal/database"
@@ -41,6 +42,15 @@ func main() {
 	}
 
 	r := gin.Default()
+	if proxies := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES")); proxies != "" {
+		parts := strings.Split(proxies, ",")
+		for i := range parts {
+			parts[i] = strings.TrimSpace(parts[i])
+		}
+		if err := r.SetTrustedProxies(parts); err != nil {
+			log.Printf("[HTTP] TRUSTED_PROXIES ignoré: %v", err)
+		}
+	}
 	r.Static("/assets", "./assets")
 	r.Static("/uploads", "./uploads")
 	routes.Setup(r, db)
