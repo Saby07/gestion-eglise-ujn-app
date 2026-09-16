@@ -1,0 +1,96 @@
+package pages
+
+import (
+	"eglise_ujn/internal/models"
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/viewmodels"
+	"fmt"
+)
+
+templ RequisitionEditForm(vm viewmodels.LayoutVM, req *models.Requisition, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM) {
+	@AppLayout(vm, requisitionEditBody(vm, req, accounts, categories, suppliers))
+}
+
+templ requisitionEditBody(vm viewmodels.LayoutVM, req *models.Requisition, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM) {
+	@components.PageHeader("Modifier la réquisition", "Réquisitions")
+	<div class="card">
+		<div class="card-body">
+			<form method="post" action={ fmt.Sprintf("/requisitions/%d/edit", req.ID) } id="req-edit-form">
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<div class="row g-3 mb-3">
+					<div class="col-md-6">
+						<label class="form-label">Titre <span class="text-danger">*</span></label>
+						<input name="title" class="form-control" value={ req.Title } required/>
+					</div>
+					<div class="col-md-4">
+						<label class="form-label">Date <span class="text-danger">*</span></label>
+						<input type="date" name="date" class="form-control" value={ req.RequisitionDate.Format("2006-01-02") } required/>
+					</div>
+				</div>
+				if len(accounts) > 0 || len(categories) > 0 || len(suppliers) > 0 {
+					<div class="row g-3 mb-3">
+						if len(accounts) > 0 {
+							<div class="col-md-4">
+								<label class="form-label">Compte (optionnel)</label>
+								<select name="account_id" class="form-select">
+									<option value="">— Aucun —</option>
+									for _, a := range accounts {
+										<option value={ fmt.Sprintf("%d", a.ID) } selected?={ req.AccountID != nil && *req.AccountID == a.ID }>{ a.Name }</option>
+									}
+								</select>
+							</div>
+						}
+						if len(categories) > 0 {
+							<div class="col-md-4">
+								<label class="form-label">Catégorie (optionnel)</label>
+								<select name="category_id" class="form-select">
+									<option value="">— Aucune —</option>
+									for _, c := range categories {
+										<option value={ fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
+									}
+								</select>
+							</div>
+						}
+						if len(suppliers) > 0 {
+							<div class="col-md-4">
+								<label class="form-label">Fournisseur (optionnel)</label>
+								<select name="supplier_id" class="form-select">
+									<option value="">— Aucun —</option>
+									for _, s := range suppliers {
+										<option value={ fmt.Sprintf("%d", s.ID) }>{ s.Name }</option>
+									}
+								</select>
+							</div>
+						}
+					</div>
+				}
+				<h5 class="mb-3">Articles <span class="text-danger">*</span></h5>
+				<div id="items-container">
+					for _, it := range req.Items {
+						<div class="row g-2 mb-2 item-row">
+							<div class="col-md-5"><input name="designation" class="form-control" placeholder="Désignation" value={ it.Designation } required/></div>
+							<div class="col-md-2"><input type="number" step="0.01" name="quantity" class="form-control" placeholder="Qté" value={ fmt.Sprintf("%.2f", it.Quantity) } required/></div>
+							<div class="col-md-3"><input type="number" step="0.01" name="unit_price" class="form-control" placeholder="Prix unitaire" value={ fmt.Sprintf("%.2f", it.UnitPrice) } required/></div>
+						</div>
+					}
+				</div>
+				<button type="button" class="btn btn-sm btn-soft-secondary mb-3" onclick="addItemRow()">+ Ajouter une ligne</button>
+				<div class="d-flex gap-2">
+					<button class="btn btn-success">Enregistrer</button>
+					<a href={ fmt.Sprintf("/requisitions/%d", req.ID) } class="btn btn-light">Annuler</a>
+				</div>
+			</form>
+		</div>
+	</div>
+	<script>
+		function addItemRow() {
+			var c = document.getElementById('items-container');
+			var row = document.createElement('div');
+			row.className = 'row g-2 mb-2 item-row';
+			row.innerHTML = '<div class="col-md-5"><input name="designation" class="form-control" placeholder="Désignation" required></div>' +
+				'<div class="col-md-2"><input type="number" step="0.01" name="quantity" class="form-control" placeholder="Qté" required></div>' +
+				'<div class="col-md-3"><input type="number" step="0.01" name="unit_price" class="form-control" placeholder="Prix unitaire" required></div>';
+			c.appendChild(row);
+		}
+	</script>
+}

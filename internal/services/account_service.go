@@ -102,6 +102,20 @@ func (s *AccountService) ProjectedBalance(ctx context.Context, accountID uint) (
 	return acc.Balance, acc.Balance - pending, nil
 }
 
+func (s *AccountService) CheckDisbursementBalance(ctx context.Context, accountID uint, amount float64) (string, error) {
+	_, projected, err := s.ProjectedBalance(ctx, accountID)
+	if err != nil {
+		return "", err
+	}
+	if projected < amount {
+		return fmt.Sprintf("Attention : le solde projeté (%.2f) est insuffisant pour ce décaissement (%.2f)", projected, amount), nil
+	}
+	if projected-amount < amount*0.1 {
+		return fmt.Sprintf("Attention : le solde projeté après décaissement sera faible (%.2f)", projected-amount), nil
+	}
+	return "", nil
+}
+
 func (s *AccountService) DeductForDisbursement(ctx context.Context, accountID uint, amount float64, reqID uint, userID uint, by string) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return s.DeductForDisbursementWithTx(tx, accountID, amount, reqID, userID, by)
@@ -114,7 +128,7 @@ func (s *AccountService) DeductForDisbursementWithTx(tx *gorm.DB, accountID uint
 		return err
 	}
 	if acc.Balance < amount {
-		return fmt.Errorf("solde insuffisant (disponible: %.2f)", acc.Balance)
+		return ErrInsufficientBalance
 	}
 	before := acc.Balance
 	acc.Balance -= amount

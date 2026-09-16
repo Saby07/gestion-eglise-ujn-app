@@ -1,6 +1,8 @@
 package viewmodels
 
 import (
+	"encoding/json"
+
 	"eglise_ujn/internal/models"
 	"eglise_ujn/internal/services"
 )
@@ -117,15 +119,92 @@ type AccountRow struct {
 }
 
 type RequisitionRow struct {
-	ID          uint
+	ID           uint
+	Title        string
+	Author       string
+	Date         string
+	Amount       float64
+	CategoryName string
+	Step         string
+	StepLabel    string
+	Status       string
+	StatusClass  string
+}
+
+type RequisitionSearchVM struct {
+	Q          string
+	From       string
+	To         string
+	CategoryID string
+}
+
+type TimelineEventVM struct {
+	Icon        string
+	IconBg      string
 	Title       string
-	Author      string
+	Description string
+	Actor       string
 	Date        string
-	Amount      float64
-	Step        string
-	StepLabel   string
-	Status      string
-	StatusClass string
+	Done        bool
+}
+
+func BuildTimeline(req *models.Requisition) []TimelineEventVM {
+	if req == nil {
+		return nil
+	}
+	events := []TimelineEventVM{
+		{
+			Icon: "ri-file-add-line", IconBg: "bg-primary-subtle text-primary",
+			Title: "Création", Description: req.Title,
+			Actor: req.User.FullName(), Date: req.CreatedAt.Format("02/01/2006 15:04"), Done: true,
+		},
+	}
+	for _, v := range req.Validations {
+		label := validationStepLabel(v.Step)
+		events = append(events, TimelineEventVM{
+			Icon: "ri-checkbox-circle-line", IconBg: "bg-success-subtle text-success",
+			Title: "Validation — " + label, Description: v.Comment,
+			Actor: v.ValidatedBy.FullName(), Date: v.ValidatedAt.Format("02/01/2006 15:04"), Done: true,
+		})
+	}
+	if req.CurrentStep == models.StepPendingDisbursement || req.Disbursement != nil {
+		active := req.Disbursement == nil
+		ev := TimelineEventVM{
+			Icon: "ri-wallet-3-line", IconBg: "bg-info-subtle text-info",
+			Title: "En attente de décaissement", Done: !active,
+		}
+		if req.Disbursement != nil {
+			ev.Title = "Décaissement effectué"
+			ev.Actor = req.Disbursement.DisbursedBy.FullName()
+			ev.Date = req.Disbursement.DisbursedAt.Format("02/01/2006 15:04")
+			ev.Done = true
+		}
+		events = append(events, ev)
+	}
+	if req.Status == models.ReqStatusCancelled {
+		date := ""
+		if req.CancelledAt != nil {
+			date = req.CancelledAt.Format("02/01/2006 15:04")
+		}
+		events = append(events, TimelineEventVM{
+			Icon: "ri-close-circle-line", IconBg: "bg-danger-subtle text-danger",
+			Title: "Annulation", Description: req.CancelReason, Date: date, Done: true,
+		})
+	}
+	return events
+}
+
+func validationStepLabel(step models.ValidationStepKey) string {
+	switch step {
+	case models.ValAccountant:
+		return "Comptable"
+	case models.ValAdmin:
+		return "Admin"
+	case models.ValSuperAdmin:
+		return "Super Admin"
+	default:
+		return string(step)
+	}
 }
 
 func StepLabel(step models.RequisitionStep) string {
@@ -196,6 +275,7 @@ func MapRequisitions(list []models.Requisition) []RequisitionRow {
 		rows = append(rows, RequisitionRow{
 			ID: r.ID, Title: r.Title, Author: r.User.FullName(),
 			Date: r.RequisitionDate.Format("02/01/2006"), Amount: r.TotalAmount,
+			CategoryName: requisitionCategoryName(r),
 			Step: string(r.CurrentStep), StepLabel: StepLabel(r.CurrentStep),
 			Status: string(r.Status), StatusClass: StatusClass(r.Status, r.CurrentStep),
 		})
@@ -203,4 +283,89 @@ func MapRequisitions(list []models.Requisition) []RequisitionRow {
 	return rows
 }
 
+func requisitionCategoryName(r models.Requisition) string {
+	// Placeholder until Category relation is wired; handlers may override via MapRequisitions.
+	return ""
+}
+
 type ReportRow = services.DisbursementReportRow
+
+type AuditLogRow struct {
+	ID        uint
+	UserName  string
+	Action    string
+	Entity    string
+	Details   string
+	IP        string
+	CreatedAt string
+}
+
+type CategoryVM struct {
+	ID          uint
+	Name        string
+	Description string
+	Active      bool
+}
+
+type BudgetVM struct {
+	ID           uint
+	Year         int
+	CategoryName string
+	Amount       float64
+	Spent        float64
+	UsagePercent float64
+}
+
+func BudgetUsageClass(pct float64) string {
+	if pct >= 90 {
+		return "bg-danger"
+	}
+	if pct >= 75 {
+		return "bg-warning"
+	}
+	return "bg-success"
+}
+
+type SupplierVM struct {
+	ID      uint
+	Name    string
+	Phone   string
+	Email   string
+	Address string
+	Active  bool
+}
+
+type SettingsVM struct {
+	ChurchName   string
+	DarkMode     bool
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUser     string
+	SMTPFrom     string
+	ReminderDays int
+}
+
+type StatsVM struct {
+	CategoryLabels        []string
+	CategoryValues        []float64
+	MonthlyLabels         []string
+	MonthlyValues         []float64
+	ValidationDelayLabels []string
+	ValidationDelayValues []float64
+}
+
+func StatsJSONArray(labels []string) string {
+	if len(labels) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(labels)
+	return string(b)
+}
+
+func StatsJSONFloats(values []float64) string {
+	if len(values) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(values)
+	return string(b)
+}

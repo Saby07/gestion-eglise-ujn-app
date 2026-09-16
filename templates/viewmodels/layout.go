@@ -55,6 +55,8 @@ type LayoutVM struct {
 	CurrentUserID uint
 	UserName      string
 	UserRole      string
+	ChurchName    string
+	DarkMode      bool
 	IsSuperAdmin  bool
 	IsAdmin       bool
 	IsAccountant  bool
@@ -70,6 +72,16 @@ func (v LayoutVM) CanCreateRequisition() bool { return v.IsStaff || v.IsAdmin ||
 func (v LayoutVM) CanViewReports() bool {
 	return v.IsSuperAdmin || v.IsAdmin || v.IsAccountant || v.IsCashier
 }
+
+func (v LayoutVM) CanManageCategories() bool { return v.IsSuperAdmin || v.IsAdmin }
+
+func (v LayoutVM) CanManageSuppliers() bool {
+	return v.IsSuperAdmin || v.IsAdmin || v.IsAccountant
+}
+
+func (v LayoutVM) CanViewAudit() bool { return v.IsSuperAdmin }
+
+func (v LayoutVM) CanManageSettings() bool { return v.IsSuperAdmin }
 
 func (v LayoutVM) IsStaffOnly() bool {
 	return v.IsStaff && !v.IsAdmin && !v.IsSuperAdmin && !v.IsAccountant && !v.IsCashier

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"eglise_ujn/internal/httputil"
 	"eglise_ujn/internal/middlewares"
 	"eglise_ujn/internal/models"
 	"eglise_ujn/internal/services"
@@ -9,11 +10,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const notifSvcKey = "notifSvc"
+const (
+	notifSvcKey     = "notifSvc"
+	settingsSvcKey  = "settingsSvc"
+)
 
 func SetNotificationService(svc *services.NotificationService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set(notifSvcKey, svc)
+		c.Next()
+	}
+}
+
+func SetSettingsService(svc *services.SettingsService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(settingsSvcKey, svc)
 		c.Next()
 	}
 }
@@ -23,7 +34,7 @@ func layoutFromCtx(c *gin.Context, title, menu string) viewmodels.LayoutVM {
 	vm := viewmodels.LayoutVM{
 		Title:      title,
 		CSRF:       middlewares.SetCSRFCookie(c),
-		Alert:      c.Query("alert"),
+		Alert:      httputil.PopFlash(c),
 		ActiveMenu: menu,
 	}
 	if u != nil {
@@ -41,6 +52,14 @@ func layoutFromCtx(c *gin.Context, title, menu string) viewmodels.LayoutVM {
 				vm.Notifications = viewmodels.MapNotifications(list)
 				vm.UnreadCount, _ = notifSvc.CountUnread(c.Request.Context(), u.ID)
 			}
+		}
+	}
+	if raw, ok := c.Get(settingsSvcKey); ok {
+		if settingsSvc, ok := raw.(*services.SettingsService); ok {
+			churchName, _ := settingsSvc.Get(c.Request.Context(), services.SettingChurchName)
+			theme, _ := settingsSvc.Get(c.Request.Context(), services.SettingTheme)
+			vm.ChurchName = churchName
+			vm.DarkMode = theme == "dark"
 		}
 	}
 	return vm

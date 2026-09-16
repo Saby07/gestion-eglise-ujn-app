@@ -23,6 +23,7 @@ const (
 type RequisitionStatus string
 
 const (
+	ReqStatusDraft     RequisitionStatus = "draft"
 	ReqStatusOpen      RequisitionStatus = "open"
 	ReqStatusCancelled RequisitionStatus = "cancelled"
 	ReqStatusCompleted RequisitionStatus = "completed"
@@ -40,6 +41,14 @@ type Requisition struct {
 	User            User              `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	AccountID       *uint             `gorm:"index"`
 	Account         *ChurchAccount    `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	CategoryID      *uint             `gorm:"index"`
+	Category        *ExpenseCategory  `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	SupplierID      *uint             `gorm:"index"`
+	Supplier        *Supplier         `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+
+	ReturnReason string     `gorm:"type:text"`
+	ReturnedAt   *time.Time `gorm:"index"`
+	ReturnedBy   *uint      `gorm:"index"`
 
 	// Justifications comptable (optionnelles)
 	InvoicePath       string `gorm:"type:varchar(500)"`
@@ -88,6 +97,7 @@ type RequisitionValidation struct {
 	ValidatedBy   User              `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	ValidatedAt   time.Time         `gorm:"not null"`
 	Comment       string            `gorm:"type:text"`
+	SignaturePath string            `gorm:"type:varchar(500)"`
 }
 
 func (RequisitionValidation) TableName() string { return "requisition_validations" }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"eglise_ujn/internal/models"
@@ -14,10 +15,28 @@ import (
 type RequisitionService struct {
 	db       *gorm.DB
 	notifSvc *NotificationService
+	auditSvc *AuditService
+	emailSvc *EmailService
 }
 
-func NewRequisitionService(db *gorm.DB, notifSvc *NotificationService) *RequisitionService {
-	return &RequisitionService{db: db, notifSvc: notifSvc}
+func NewRequisitionService(db *gorm.DB, notifSvc *NotificationService, auditSvc *AuditService, emailSvc *EmailService) *RequisitionService {
+	return &RequisitionService{db: db, notifSvc: notifSvc, auditSvc: auditSvc, emailSvc: emailSvc}
+}
+
+type SearchFilter struct {
+	Q          string
+	From       *time.Time
+	To         *time.Time
+	CategoryID *uint
+	MinAmount  *float64
+	MaxAmount  *float64
+}
+
+type TimelineEvent struct {
+	At     time.Time
+	Label  string
+	Actor  string
+	Detail string
 }
 
 type RequisitionItemInput struct {
@@ -52,6 +71,43 @@ func (s *RequisitionService) List(ctx context.Context, filter string, user *mode
 		q = q.Where("status = ?", models.ReqStatusCancelled)
 	case "completed":
 		q = q.Where("status = ?", models.ReqStatusCompleted)
+	}
+
+	var list []models.Requisition
+	return list, q.Find(&list).Error
+}
+
+func (s *RequisitionService) ListWithSearch(ctx context.Context, f SearchFilter, user *models.User) ([]models.Requisition, error) {
+	q := s.db.WithContext(ctx).
+		Preload("User").
+		Preload("Items").
+		Preload("Category").
+		Preload("Supplier").
+		Preload("Validations.ValidatedBy").
+		Preload("Disbursement").
+		Order("created_at desc")
+
+	if user != nil && s.isStaffOnly(user) {
+		q = q.Where("user_id = ?", user.ID)
+	}
+	if f.Q != "" {
+		like := "%" + f.Q + "%"
+		q = q.Where("title LIKE ? OR supplier_name LIKE ?", like, like)
+	}
+	if f.From != nil {
+		q = q.Where("requisition_date >= ?", *f.From)
+	}
+	if f.To != nil {
+		q = q.Where("requisition_date < ?", *f.To)
+	}
+	if f.CategoryID != nil {
+		q = q.Where("category_id = ?", *f.CategoryID)
+	}
+	if f.MinAmount != nil {
+		q = q.Where("total_amount >= ?", *f.MinAmount)
+	}
+	if f.MaxAmount != nil {
+		q = q.Where("total_amount <= ?", *f.MaxAmount)
 	}
 
 	var list []models.Requisition
@@ -97,6 +153,8 @@ func (s *RequisitionService) GetByID(ctx context.Context, id uint) (*models.Requ
 		Preload("Validations.ValidatedBy").
 		Preload("Disbursement.DisbursedBy").
 		Preload("Account").
+		Preload("Category").
+		Preload("Supplier").
 		First(&req, id).Error
 	if err != nil {
 		return nil, err
@@ -104,7 +162,7 @@ func (s *RequisitionService) GetByID(ctx context.Context, id uint) (*models.Requ
 	return &req, nil
 }
 
-func (s *RequisitionService) Create(ctx context.Context, user *models.User, title string, date time.Time, items []RequisitionItemInput, accountID *uint) (*models.Requisition, error) {
+func (s *RequisitionService) Create(ctx context.Context, user *models.User, title string, date time.Time, items []RequisitionItemInput, categoryID, accountID, supplierID *uint) (*models.Requisition, error) {
 	if title == "" || len(items) == 0 {
 		return nil, errors.New("titre et items requis")
 	}
@@ -135,22 +193,207 @@ func (s *RequisitionService) Create(ctx context.Context, user *models.User, titl
 		CurrentStep:     models.StepPendingAccountant,
 		Status:          models.ReqStatusOpen,
 		UserID:          user.ID,
+		CategoryID:      categoryID,
 		AccountID:       accountID,
+		SupplierID:      supplierID,
 		Items:           reqItems,
 	}
 	req.CreatedBy = user.FullName()
 	if err := s.db.WithContext(ctx).Create(&req).Error; err != nil {
 		return nil, err
 	}
+	if s.auditSvc != nil {
+		_ = s.auditSvc.Log(ctx, user.ID, "create", "requisition", req.ID,
+			fmt.Sprintf("Création réquisition « %s » (%.2f)", req.Title, req.TotalAmount), "")
+	}
 	if s.notifSvc != nil {
 		_ = s.notifSvc.NotifyStep(ctx, req.ID, models.StepPendingAccountant, user.FullName(), req.Title)
 	}
+	s.sendAuthorEmail(ctx, user, fmt.Sprintf("Votre réquisition « %s » a été soumise", req.Title))
 	return &req, nil
 }
 
 type AccountantExtras struct {
 	InvoicePath, DeliveryNotePath, PurchaseOrderPath, ReceptionNotePath string
 	SupplierName, SupplierPhone, SupplierAddress                        string
+	SignaturePath                                                       string
+}
+
+func (s *RequisitionService) CanEdit(user *models.User, req *models.Requisition) bool {
+	if user == nil || req == nil {
+		return false
+	}
+	if req.Status == models.ReqStatusDraft && req.UserID == user.ID {
+		return true
+	}
+	if req.Status != models.ReqStatusOpen {
+		return false
+	}
+	if !req.IsValidated(models.ValAccountant) {
+		return req.UserID == user.ID || user.HasRole(models.RoleAdmin) || user.HasRole(models.RoleSuperAdmin)
+	}
+	return false
+}
+
+func (s *RequisitionService) Update(ctx context.Context, reqID uint, user *models.User, title string, date time.Time, items []RequisitionItemInput, categoryID, accountID, supplierID *uint) error {
+	req, err := s.GetByID(ctx, reqID)
+	if err != nil {
+		return err
+	}
+	if !s.CanEdit(user, req) {
+		return errors.New("modification non autorisée")
+	}
+	if title == "" || len(items) == 0 {
+		return errors.New("titre et items requis")
+	}
+	wasDraft := req.Status == models.ReqStatusDraft
+	var total float64
+	reqItems := make([]models.RequisitionItem, 0, len(items))
+	for _, it := range items {
+		if it.Designation == "" || it.Quantity <= 0 || it.UnitPrice < 0 {
+			return errors.New("item invalide")
+		}
+		line := it.Quantity * it.UnitPrice
+		total += line
+		reqItems = append(reqItems, models.RequisitionItem{
+			RequisitionID: reqID,
+			Designation:   it.Designation,
+			Quantity:      it.Quantity,
+			UnitPrice:     it.UnitPrice,
+			TotalPrice:    line,
+		})
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("requisition_id = ?", reqID).Delete(&models.RequisitionItem{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&reqItems).Error; err != nil {
+			return err
+		}
+		updates := map[string]interface{}{
+			"title":            title,
+			"requisition_date": date,
+			"total_amount":     total,
+			"category_id":      categoryID,
+			"account_id":       accountID,
+			"supplier_id":      supplierID,
+			"updated_by":       user.FullName(),
+		}
+		if wasDraft {
+			updates["status"] = models.ReqStatusOpen
+			updates["current_step"] = models.StepPendingAccountant
+			updates["return_reason"] = ""
+			updates["returned_at"] = nil
+			updates["returned_by"] = nil
+			if err := tx.Where("requisition_id = ?", reqID).Delete(&models.RequisitionValidation{}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(&models.Requisition{}).Where("id = ?", reqID).Updates(updates).Error
+	})
+	if err != nil {
+		return err
+	}
+	if s.auditSvc != nil {
+		_ = s.auditSvc.Log(ctx, user.ID, "update", "requisition", reqID,
+			fmt.Sprintf("Modification réquisition « %s »", title), "")
+	}
+	if wasDraft && s.notifSvc != nil {
+		_ = s.notifSvc.NotifyStep(ctx, reqID, models.StepPendingAccountant, user.FullName(), title)
+	}
+	return nil
+}
+
+func (s *RequisitionService) ReturnForCorrection(ctx context.Context, reqID uint, user *models.User, reason string) error {
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("motif de retour requis")
+	}
+	req, err := s.GetByID(ctx, reqID)
+	if err != nil {
+		return err
+	}
+	if req.Status != models.ReqStatusOpen {
+		return errors.New("réquisition non modifiable")
+	}
+	step := req.NextValidationStep()
+	if step == "" || !s.canValidate(user, step) {
+		return errors.New("non autorisé pour cette étape")
+	}
+	if req.CurrentStep != s.stepToRequisitionStep(step) {
+		return errors.New("étape de validation incorrecte")
+	}
+	now := time.Now()
+	uid := user.ID
+	err = s.db.WithContext(ctx).Model(req).Updates(map[string]interface{}{
+		"status":        models.ReqStatusDraft,
+		"return_reason": reason,
+		"returned_at":   &now,
+		"returned_by":   &uid,
+		"updated_by":    user.FullName(),
+	}).Error
+	if err != nil {
+		return err
+	}
+	if s.auditSvc != nil {
+		_ = s.auditSvc.Log(ctx, user.ID, "return", "requisition", reqID,
+			fmt.Sprintf("Retour pour correction : %s", reason), "")
+	}
+	if author, err := s.loadUser(ctx, req.UserID); err == nil {
+		s.sendAuthorEmail(ctx, author, fmt.Sprintf("Votre réquisition « %s » a été retournée pour correction : %s", req.Title, reason))
+	}
+	return nil
+}
+
+func (s *RequisitionService) BuildTimeline(req *models.Requisition) []TimelineEvent {
+	if req == nil {
+		return nil
+	}
+	events := []TimelineEvent{{
+		At:     req.CreatedAt,
+		Label:  "Création",
+		Actor:  req.User.FullName(),
+		Detail: req.Title,
+	}}
+	for _, v := range req.Validations {
+		events = append(events, TimelineEvent{
+			At:     v.ValidatedAt,
+			Label:  "Validation " + string(v.Step),
+			Actor:  v.ValidatedBy.FullName(),
+			Detail: v.Comment,
+		})
+	}
+	if req.ReturnedAt != nil {
+		events = append(events, TimelineEvent{
+			At:     *req.ReturnedAt,
+			Label:  "Retour pour correction",
+			Actor:  "",
+			Detail: req.ReturnReason,
+		})
+	}
+	if req.CancelledAt != nil {
+		events = append(events, TimelineEvent{
+			At:     *req.CancelledAt,
+			Label:  "Annulation",
+			Actor:  "",
+			Detail: req.CancelReason,
+		})
+	}
+	if req.Disbursement != nil {
+		events = append(events, TimelineEvent{
+			At:     req.Disbursement.DisbursedAt,
+			Label:  "Décaissement",
+			Actor:  req.Disbursement.DisbursedBy.FullName(),
+			Detail: fmt.Sprintf("%.2f", req.Disbursement.Amount),
+		})
+	}
+	for i := 0; i < len(events)-1; i++ {
+		for j := i + 1; j < len(events); j++ {
+			if events[j].At.Before(events[i].At) {
+				events[i], events[j] = events[j], events[i]
+			}
+		}
+	}
+	return events
 }
 
 func (s *RequisitionService) Validate(ctx context.Context, reqID uint, validator *models.User, comment string, extras *AccountantExtras) error {
@@ -197,6 +440,9 @@ func (s *RequisitionService) Validate(ctx context.Context, reqID uint, validator
 			ValidatedAt:   time.Now(),
 			Comment:       comment,
 		}
+		if extras != nil && extras.SignaturePath != "" {
+			val.SignaturePath = extras.SignaturePath
+		}
 		val.CreatedBy = validator.FullName()
 		if err := tx.Create(&val).Error; err != nil {
 			return err
@@ -209,14 +455,38 @@ func (s *RequisitionService) Validate(ctx context.Context, reqID uint, validator
 	if err != nil {
 		return err
 	}
+	if s.auditSvc != nil {
+		_ = s.auditSvc.Log(ctx, validator.ID, "validate", "requisition", reqID,
+			fmt.Sprintf("Validation étape %s", validatedStep), "")
+	}
 	if s.notifSvc != nil {
 		_ = s.notifSvc.MarkStepRead(ctx, reqID, validatedStep)
 		updated, loadErr := s.GetByID(ctx, reqID)
 		if loadErr == nil && updated.Status == models.ReqStatusOpen {
 			_ = s.notifSvc.NotifyStep(ctx, updated.ID, updated.CurrentStep, validator.FullName(), updated.Title)
 		}
+		if loadErr == nil {
+			if author, aErr := s.loadUser(ctx, updated.UserID); aErr == nil {
+				s.sendAuthorEmail(ctx, author, fmt.Sprintf("Votre réquisition « %s » a été validée (étape %s)", updated.Title, validatedStep))
+			}
+		}
 	}
 	return nil
+}
+
+func (s *RequisitionService) loadUser(ctx context.Context, userID uint) (*models.User, error) {
+	var u models.User
+	if err := s.db.WithContext(ctx).First(&u, userID).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (s *RequisitionService) sendAuthorEmail(ctx context.Context, user *models.User, body string) {
+	if s.emailSvc == nil || user == nil || user.Email == "" || !s.emailSvc.IsEnabled(ctx) {
+		return
+	}
+	_ = s.emailSvc.Send(ctx, user.Email, "Réquisition — notification", body)
 }
 
 // computeStepAfterValidation calcule l'étape suivante en mémoire (évite une

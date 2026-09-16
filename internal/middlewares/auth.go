@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"eglise_ujn/internal/config"
+	"eglise_ujn/internal/httputil"
 	"eglise_ujn/internal/models"
 	"eglise_ujn/internal/services"
 
@@ -15,30 +16,43 @@ const (
 	ContextUserKey = "user"
 )
 
+func wantsJSONResponse(c *gin.Context) bool {
+	if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+		return true
+	}
+	return strings.Contains(c.GetHeader("Accept"), "application/json")
+}
+
+func authUnauthorized(c *gin.Context) {
+	if wantsJSONResponse(c) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Non authentifié"})
+		c.Abort()
+		return
+	}
+	c.Redirect(http.StatusFound, "/login")
+	c.Abort()
+}
+
 func AuthMiddleware(authSvc *services.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		jcfg, err := config.LoadJWTConfig()
 		if err != nil {
-			c.Redirect(http.StatusFound, "/login")
-			c.Abort()
+			authUnauthorized(c)
 			return
 		}
 		token, err := c.Cookie(jcfg.CookieName)
 		if err != nil || token == "" {
-			c.Redirect(http.StatusFound, "/login")
-			c.Abort()
+			authUnauthorized(c)
 			return
 		}
 		claims, err := config.ParseToken(jcfg, token)
 		if err != nil {
-			c.Redirect(http.StatusFound, "/login")
-			c.Abort()
+			authUnauthorized(c)
 			return
 		}
 		user, err := authSvc.GetUserByID(c.Request.Context(), claims.UserID)
 		if err != nil || !user.IsActive {
-			c.Redirect(http.StatusFound, "/login")
-			c.Abort()
+			authUnauthorized(c)
 			return
 		}
 		c.Set(ContextUserKey, user)
@@ -72,6 +86,11 @@ func RequireRoles(keys ...models.RoleKey) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if HasRole(c, keys...) {
 			c.Next()
+			return
+		}
+		if wantsJSONResponse(c) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Accès non autorisé"})
+			c.Abort()
 			return
 		}
 		c.Redirect(http.StatusFound, "/dashboard")
@@ -160,4 +179,27 @@ func SetAuthCookie(c *gin.Context, name, value string, maxAge int) {
 		Secure:   requestUsesSecureCookies(c),
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func LoginCSRFMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Method != http.MethodPost {
+			c.Next()
+			return
+		}
+		if err := c.Request.ParseForm(); err != nil {
+			c.String(http.StatusForbidden, "CSRF invalide")
+			c.Abort()
+			return
+		}
+		form := c.PostForm("csrf_token")
+		cookie, _ := c.Cookie(csrfCookieName)
+		if err := config.ValidateCSRF(form, cookie); err != nil {
+			httputil.SetFlash(c, "Session expirée, veuillez réessayer")
+			c.Redirect(http.StatusFound, "/login")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
 }

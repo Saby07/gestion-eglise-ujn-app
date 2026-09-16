@@ -64,3 +64,10 @@ func HashPassword(password string) (string, error) {
 	b, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(b), err
 }
+
+func ValidatePassword(password string) error {
+	if len(password) < 8 {
+		return errors.New("mot de passe trop court (minimum 8 caractères)")
+	}
+	return nil
+}

@@ -1,0 +1,62 @@
+package pages
+
+import (
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/viewmodels"
+	"fmt"
+)
+
+templ NotificationsList(vm viewmodels.LayoutVM, list []viewmodels.NotificationVM) {
+	@AppLayout(vm, notificationsBody(vm, list))
+}
+
+templ notificationsBody(vm viewmodels.LayoutVM, list []viewmodels.NotificationVM) {
+	@components.PageHeader("Notifications", "Notifications")
+	<div class="d-flex justify-content-between align-items-center mb-3">
+		<p class="text-muted mb-0">
+			if vm.UnreadCount > 0 {
+				{ fmt.Sprintf("%d notification(s) non lue(s)", vm.UnreadCount) }
+			} else {
+				Toutes les notifications sont lues.
+			}
+		</p>
+		if vm.UnreadCount > 0 {
+			<form method="post" action="/notifications/read-all">
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<button class="btn btn-sm btn-soft-primary"><i class="ri-check-double-line me-1"></i> Tout marquer comme lu</button>
+			</form>
+		}
+	</div>
+	<div class="card">
+		<div class="card-body p-0">
+			if len(list) == 0 {
+				<div class="text-center text-muted py-5">
+					<i class="ri-notification-off-line fs-36 d-block mb-2"></i>
+					<p class="mb-0">Aucune notification</p>
+				</div>
+			} else {
+				<div class="list-group list-group-flush">
+					for _, n := range list {
+						<a
+							href={ fmt.Sprintf("/notifications/%d/read", n.ID) }
+							class={ "list-group-item list-group-item-action", templ.KV("list-group-item-light", n.IsUnread) }
+						>
+							<div class="d-flex align-items-start gap-3">
+								<span class={ "avatar-xs d-inline-flex align-items-center justify-content-center rounded-circle flex-shrink-0", n.IconBg }>
+									<i class={ n.IconClass }></i>
+								</span>
+								<div class="flex-grow-1">
+									<p class={ "mb-1", templ.KV("fw-semibold", n.IsUnread) }>{ n.Message }</p>
+									<p class="text-muted fs-12 mb-0"><i class="ri-time-line me-1"></i>{ n.TimeAgo }</p>
+								</div>
+								if n.IsUnread {
+									<span class="badge bg-danger rounded-pill align-self-center">Nouveau</span>
+								}
+							</div>
+						</a>
+					}
+				</div>
+			}
+		</div>
+	</div>
+}

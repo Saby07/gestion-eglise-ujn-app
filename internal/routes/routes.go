@@ -13,39 +13,67 @@ import (
 )
 
 func Setup(r *gin.Engine, db *gorm.DB) {
+	settingsSvc := services.NewSettingsService(db)
+	emailSvc := services.NewEmailService(settingsSvc)
+	auditSvc := services.NewAuditService(db)
 	authSvc := services.NewAuthService(db)
 	accountSvc := services.NewAccountService(db)
-	notifSvc := services.NewNotificationService(db)
-	reqSvc := services.NewRequisitionService(db, notifSvc)
+	notifSvc := services.NewNotificationService(db, emailSvc)
+	reqSvc := services.NewRequisitionService(db, notifSvc, auditSvc, emailSvc)
 	userSvc := services.NewUserService(db)
 	reportSvc := services.NewReportService(db)
 	dashSvc := services.NewDashboardService(db, accountSvc, reqSvc)
+	categorySvc := services.NewCategoryService(db)
+	budgetSvc := services.NewBudgetService(db)
+	supplierSvc := services.NewSupplierService(db)
+	statsSvc := services.NewStatsService(db)
+	exportSvc := services.NewExportService(db)
+	backupSvc := services.NewBackupService(db)
 
 	authH := handlers.NewAuthHandler(authSvc, userSvc)
 	dashH := handlers.NewDashboardHandler(dashSvc)
 	usersH := handlers.NewUsersHandler(userSvc, reqSvc)
 	accountsH := handlers.NewAccountsHandler(accountSvc)
-	reqH := handlers.NewRequisitionsHandler(reqSvc, accountSvc)
+	reqH := handlers.NewRequisitionsHandler(reqSvc, accountSvc, categorySvc, supplierSvc, auditSvc)
 	reportsH := handlers.NewReportsHandler(reportSvc)
 	notifH := handlers.NewNotificationHandler(notifSvc)
+	uploadH := handlers.NewUploadHandler()
+	auditH := handlers.NewAuditHandler(auditSvc)
+	categoryH := handlers.NewCategoryHandler(categorySvc)
+	budgetH := handlers.NewBudgetHandler(budgetSvc, categorySvc)
+	supplierH := handlers.NewSupplierHandler(supplierSvc)
+	settingsH := handlers.NewSettingsHandler(settingsSvc, backupSvc, auditSvc)
+	statsH := handlers.NewStatsHandler(statsSvc)
+	exportH := handlers.NewExportHandler(exportSvc, reportSvc, reqSvc)
+	apiH := handlers.NewAPIHandler(reqSvc, accountSvc, statsSvc)
+
+	r.Use(middlewares.SecurityHeaders())
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	r.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/dashboard") })
-	r.GET("/login", authH.LoginPage)
-	r.POST("/login", authH.LoginPost)
+
+	login := r.Group("/")
+	login.Use(middlewares.LoginRateLimitMiddleware())
+	login.Use(middlewares.LoginCSRFMiddleware())
+	login.GET("/login", authH.LoginPage)
+	login.POST("/login", authH.LoginPost)
 
 	auth := r.Group("/")
 	auth.Use(middlewares.AuthMiddleware(authSvc))
 	auth.Use(handlers.SetNotificationService(notifSvc))
+	auth.Use(handlers.SetSettingsService(settingsSvc))
 	auth.Use(middlewares.CSRFMiddleware())
 
-	auth.GET("/logout", authH.Logout)
+	auth.POST("/logout", authH.Logout)
 	auth.GET("/profile/password", authH.ProfilePasswordPage)
 	auth.POST("/profile/password", authH.ProfileUpdatePassword)
 	auth.GET("/dashboard", dashH.Index)
+	auth.GET("/notifications", notifH.ListPage)
+	auth.POST("/notifications/read-all", notifH.MarkAllRead)
 	auth.GET("/notifications/:id/read", notifH.Read)
+	auth.GET("/uploads/*filepath", uploadH.Serve)
 
 	// Utilisateurs — Super Admin uniquement
 	users := auth.Group("/users")
@@ -71,19 +99,84 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 	accounts.GET("/:id", accountsH.Detail)
 	accounts.POST("/:id/fund", middlewares.RequireRoles(models.RoleAccountant), accountsH.Fund)
 
+	// Catégories — Admin + Super Admin
+	categories := auth.Group("/categories")
+	categories.Use(middlewares.RequireRoles(models.RoleAdmin, models.RoleSuperAdmin))
+	categories.GET("", categoryH.List)
+	categories.POST("", categoryH.Create)
+	categories.POST("/:id/toggle", categoryH.Toggle)
+	categories.POST("/:id/delete", categoryH.Delete)
+
+	// Budgets — Admin + Accountant + Super Admin
+	budgets := auth.Group("/budgets")
+	budgets.Use(middlewares.RequireRoles(models.RoleAdmin, models.RoleAccountant, models.RoleSuperAdmin))
+	budgets.GET("", budgetH.List)
+	budgets.GET("/new", budgetH.NewPage)
+	budgets.POST("", budgetH.Create)
+	budgets.POST("/:id/edit", budgetH.Update)
+	budgets.POST("/:id/delete", budgetH.Delete)
+
+	// Fournisseurs — Admin + Accountant + Super Admin
+	suppliers := auth.Group("/suppliers")
+	suppliers.Use(middlewares.RequireRoles(models.RoleAdmin, models.RoleAccountant, models.RoleSuperAdmin))
+	suppliers.GET("", supplierH.List)
+	suppliers.POST("", supplierH.Create)
+	suppliers.GET("/:id/edit", supplierH.EditPage)
+	suppliers.POST("/:id/edit", supplierH.Update)
+	suppliers.POST("/:id/toggle", supplierH.Toggle)
+	suppliers.POST("/:id/delete", supplierH.Delete)
+
 	// Réquisitions
 	req := auth.Group("/requisitions")
 	req.GET("", reqH.List)
 	req.GET("/new", middlewares.RequireRoles(models.RoleStaff, models.RoleAdmin, models.RoleSuperAdmin), reqH.NewPage)
 	req.POST("", middlewares.RequireRoles(models.RoleStaff, models.RoleAdmin, models.RoleSuperAdmin), reqH.Create)
+	req.GET("/:id/export", exportH.RequisitionExport)
+	req.GET("/:id/edit", reqH.EditPage)
+	req.POST("/:id/edit", reqH.Update)
 	req.GET("/:id", reqH.Detail)
 	req.POST("/:id/validate", reqH.Validate)
+	req.POST("/:id/return", reqH.Return)
 	req.POST("/:id/cancel", reqH.Cancel)
 	req.POST("/:id/delete", middlewares.RequireRoles(models.RoleAdmin, models.RoleSuperAdmin), reqH.Delete)
 	req.POST("/:id/disburse", reqH.Disburse)
 
-	// Rapports
+	// Rapports & exports
 	reports := auth.Group("/reports")
 	reports.Use(middlewares.RequireRoles(models.RoleAdmin, models.RoleAccountant, models.RoleSuperAdmin, models.RoleCashier))
 	reports.GET("", reportsH.Index)
+	reports.GET("/export", exportH.ReportsExport)
+	reports.GET("/export.csv", func(c *gin.Context) {
+		q := c.Request.URL.Query()
+		if q.Get("format") == "" {
+			q.Set("format", "csv")
+		}
+		c.Request.URL.RawQuery = q.Encode()
+		exportH.ReportsExport(c)
+	})
+
+	// Statistiques
+	stats := auth.Group("/stats")
+	stats.Use(middlewares.RequireRoles(models.RoleAdmin, models.RoleAccountant, models.RoleSuperAdmin, models.RoleCashier))
+	stats.GET("", statsH.Index)
+
+	// Journal d'audit — Super Admin
+	audit := auth.Group("/audit")
+	audit.Use(middlewares.RequireRoles(models.RoleSuperAdmin))
+	audit.GET("", auditH.List)
+
+	// Paramètres — Super Admin
+	settings := auth.Group("/settings")
+	settings.Use(middlewares.RequireRoles(models.RoleSuperAdmin))
+	settings.GET("", settingsH.Index)
+	settings.POST("", settingsH.Save)
+	settings.POST("/backup", settingsH.Backup)
+
+	// API REST
+	api := r.Group("/api/v1")
+	api.Use(middlewares.AuthMiddleware(authSvc))
+	api.GET("/requisitions", apiH.ListRequisitions)
+	api.GET("/requisitions/:id", apiH.GetRequisition)
+	api.GET("/accounts", apiH.ListAccounts)
+	api.GET("/stats", apiH.Stats)
 }

@@ -38,6 +38,9 @@ type CreateUserInput struct {
 }
 
 func (s *UserService) Create(ctx context.Context, in CreateUserInput, by string) (*models.User, error) {
+	if err := ValidatePassword(in.Password); err != nil {
+		return nil, err
+	}
 	hash, err := HashPassword(in.Password)
 	if err != nil {
 		return nil, err
@@ -103,6 +106,9 @@ func (s *UserService) Update(ctx context.Context, userID uint, in UpdateUserInpu
 }
 
 func (s *UserService) UpdatePassword(ctx context.Context, userID uint, password, by string) error {
+	if err := ValidatePassword(password); err != nil {
+		return err
+	}
 	hash, err := HashPassword(password)
 	if err != nil {
 		return err
@@ -192,58 +198,4 @@ func (s *ReportService) Disbursements(ctx context.Context, from, to time.Time) (
 		})
 	}
 	return rows, total, nil
-}
-
-type DashboardMetrics struct {
-	AccountBalance         float64
-	MyRequisitionsCount    int64
-	TotalRequisitionsCount int64
-	PendingRequisitions    int64
-	PendingDisbursement    int64
-	DisbursedToday         float64
-	DisbursedMonth         float64
-	ChartLabels            []string
-	ChartValues            []float64
-}
-
-type DashboardService struct {
-	db         *gorm.DB
-	accountSvc *AccountService
-	reqSvc     *RequisitionService
-}
-
-func NewDashboardService(db *gorm.DB, accountSvc *AccountService, reqSvc *RequisitionService) *DashboardService {
-	return &DashboardService{db: db, accountSvc: accountSvc, reqSvc: reqSvc}
-}
-
-func (s *DashboardService) Metrics(ctx context.Context, userID uint) (*DashboardMetrics, error) {
-	m := &DashboardMetrics{}
-	var bal float64
-	s.db.Model(&models.ChurchAccount{}).Where("is_active = ?", true).
-		Select("COALESCE(SUM(balance),0)").Scan(&bal)
-	m.AccountBalance = bal
-
-	s.db.Model(&models.Requisition{}).Where("user_id = ?", userID).Count(&m.MyRequisitionsCount)
-	s.db.Model(&models.Requisition{}).Count(&m.TotalRequisitionsCount)
-
-	s.db.Model(&models.Requisition{}).Where("status = ? AND current_step != ?",
-		models.ReqStatusOpen, models.StepPendingDisbursement).Count(&m.PendingRequisitions)
-	s.db.Model(&models.Requisition{}).Where("current_step = ?", models.StepPendingDisbursement).Count(&m.PendingDisbursement)
-
-	now := time.Now()
-	startDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	startMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	m.DisbursedToday, _ = s.reqSvc.TotalDisbursed(ctx, startDay, startDay.AddDate(0, 0, 1))
-	m.DisbursedMonth, _ = s.reqSvc.TotalDisbursed(ctx, startMonth, startMonth.AddDate(0, 1, 0))
-
-	// 7 derniers jours pour graphique
-	m.ChartLabels = make([]string, 7)
-	m.ChartValues = make([]float64, 7)
-	for i := 6; i >= 0; i-- {
-		d := startDay.AddDate(0, 0, -i)
-		end := d.AddDate(0, 0, 1)
-		m.ChartLabels[6-i] = d.Format("02/01")
-		m.ChartValues[6-i], _ = s.reqSvc.TotalDisbursed(ctx, d, end)
-	}
-	return m, nil
 }

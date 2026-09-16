@@ -1,0 +1,85 @@
+package pages
+
+import (
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/viewmodels"
+	"fmt"
+)
+
+templ Settings(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) {
+	@AppLayout(vm, settingsBody(vm, s))
+}
+
+templ settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) {
+	@components.PageHeader("Paramètres", "Paramètres")
+	<div class="row g-4">
+		<div class="col-lg-8">
+			<div class="card">
+				<div class="card-header"><h5 class="card-title mb-0">Configuration générale</h5></div>
+				<div class="card-body">
+					<form method="post" action="/settings">
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<div class="mb-3">
+							<label class="form-label">Nom de l'église</label>
+							<input name="church_name" class="form-control" value={ s.ChurchName } required/>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Thème par défaut</label>
+							<select name="dark_mode" class="form-select">
+								<option value="0" selected?={ !s.DarkMode }>Clair</option>
+								<option value="1" selected?={ s.DarkMode }>Sombre</option>
+							</select>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Jours avant rappel de validation</label>
+							<input type="number" name="reminder_days" class="form-control" min="1" max="30" value={ fmt.Sprintf("%d", s.ReminderDays) }/>
+						</div>
+						<hr/>
+						<h6 class="mb-3">Configuration SMTP</h6>
+						<div class="row g-3">
+							<div class="col-md-8">
+								<label class="form-label">Hôte SMTP</label>
+								<input name="smtp_host" class="form-control" value={ s.SMTPHost }/>
+							</div>
+							<div class="col-md-4">
+								<label class="form-label">Port</label>
+								<input name="smtp_port" class="form-control" value={ s.SMTPPort }/>
+							</div>
+							<div class="col-md-6">
+								<label class="form-label">Utilisateur SMTP</label>
+								<input name="smtp_user" class="form-control" value={ s.SMTPUser } autocomplete="off"/>
+							</div>
+							<div class="col-md-6">
+								<label class="form-label">Expéditeur (From)</label>
+								<input type="email" name="smtp_from" class="form-control" value={ s.SMTPFrom }/>
+							</div>
+						</div>
+						<div class="mt-4">
+							<button class="btn btn-success"><i class="ri-save-line me-1"></i> Enregistrer</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+		<div class="col-lg-4">
+			<div class="card">
+				<div class="card-header"><h5 class="card-title mb-0">Sauvegarde</h5></div>
+				<div class="card-body">
+					<p class="text-muted fs-13">Générez une sauvegarde complète de la base de données et des fichiers uploadés.</p>
+					<form method="post" action="/settings/backup">
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<button class="btn btn-primary w-100"><i class="ri-download-cloud-line me-1"></i> Lancer la sauvegarde</button>
+					</form>
+				</div>
+			</div>
+			<div class="card mt-3">
+				<div class="card-body">
+					<h6 class="mb-2">Thème rapide</h6>
+					<button type="button" class="btn btn-soft-secondary w-100" data-theme-toggle>
+						<i class="ri-contrast-2-line me-1"></i> Basculer clair / sombre
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+}

@@ -45,7 +45,9 @@ func Init() {
 	}
 
 	if cfg.Driver == "sqlite" {
-		_ = db.Exec("PRAGMA foreign_keys = ON").Error
+		// OFF pendant AutoMigrate : SQLite/GORM peut DROP+recréer une table
+		// (ex. nouvelles FK) et échoue sinon avec "FOREIGN KEY constraint failed".
+		_ = db.Exec("PRAGMA foreign_keys = OFF").Error
 		_ = db.Exec("PRAGMA journal_mode = WAL").Error
 		_ = db.Exec("PRAGMA busy_timeout = 5000").Error
 	}
@@ -68,13 +70,22 @@ func Init() {
 		&models.UserRole{},
 		&models.ChurchAccount{},
 		&models.AccountTransaction{},
+		&models.ExpenseCategory{},
+		&models.Supplier{},
+		&models.Budget{},
+		&models.AppSetting{},
 		&models.Requisition{},
 		&models.RequisitionItem{},
 		&models.RequisitionValidation{},
 		&models.Disbursement{},
 		&models.Notification{},
+		&models.AuditLog{},
 	); err != nil {
 		log.Fatal("migration:", err)
+	}
+
+	if cfg.Driver == "sqlite" {
+		_ = db.Exec("PRAGMA foreign_keys = ON").Error
 	}
 
 	if cfg.Driver == "mysql" {

@@ -8,7 +8,7 @@ package layouts
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-func Head() templ.Component {
+func Head(churchName string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -29,7 +29,33 @@ func Head() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><meta content=\"Eglise UJN Management System\" name=\"description\"><meta content=\"Eglise UJN\" name=\"author\"><link rel=\"shortcut icon\" href=\"/assets/images/favicon.ico\"><script src=\"/assets/js/layout.js\"></script><link href=\"/assets/css/bootstrap.min.css\" rel=\"stylesheet\" type=\"text/css\"><link href=\"/assets/css/icons.min.css\" rel=\"stylesheet\" type=\"text/css\"><link href=\"/assets/css/app.min.css\" rel=\"stylesheet\" type=\"text/css\"><link href=\"/assets/css/custom.min.css\" rel=\"stylesheet\" type=\"text/css\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><meta content=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var2 string
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(churchName + " — Gestion financière")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/layouts/head.templ`, Line: 6, Col: 59}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" name=\"description\"><meta content=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(churchName)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/layouts/head.templ`, Line: 7, Col: 30}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" name=\"author\"><link rel=\"shortcut icon\" href=\"/assets/images/favicon.ico\"><script src=\"/assets/js/layout.js\"></script><link href=\"/assets/css/bootstrap.min.css\" rel=\"stylesheet\" type=\"text/css\"><link href=\"/assets/css/icons.min.css\" rel=\"stylesheet\" type=\"text/css\"><link href=\"/assets/css/app.min.css\" rel=\"stylesheet\" type=\"text/css\"><link href=\"/assets/css/custom.min.css\" rel=\"stylesheet\" type=\"text/css\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

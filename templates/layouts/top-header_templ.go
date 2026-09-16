@@ -238,14 +238,14 @@ func TopHeader(vm viewmodels.LayoutVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div></div></div><div class=\"dropdown ms-sm-3 header-item topbar-user\"><button type=\"button\" class=\"btn\" data-bs-toggle=\"dropdown\"><span class=\"d-flex align-items-center\"><span class=\"text-start ms-xl-2\"><span class=\"d-none d-xl-inline-block ms-1 fw-medium user-name-text\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div><div class=\"p-2 border-top\"><a href=\"/notifications\" class=\"btn btn-sm btn-soft-primary w-100\"><i class=\"ri-notification-3-line me-1\"></i> Voir toutes les notifications</a></div></div></div><div class=\"dropdown ms-sm-3 header-item topbar-user\"><button type=\"button\" class=\"btn\" data-bs-toggle=\"dropdown\"><span class=\"d-flex align-items-center\"><span class=\"text-start ms-xl-2\"><span class=\"d-none d-xl-inline-block ms-1 fw-medium user-name-text\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(vm.UserName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/layouts/top-header.templ`, Line: 81, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/layouts/top-header.templ`, Line: 86, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -258,13 +258,26 @@ func TopHeader(vm viewmodels.LayoutVM) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(vm.UserRole)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/layouts/top-header.templ`, Line: 82, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/layouts/top-header.templ`, Line: 87, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</span></span></span></button><div class=\"dropdown-menu dropdown-menu-end\"><a class=\"dropdown-item\" href=\"/profile/password\"><i class=\"ri-lock-password-line text-muted fs-16 align-middle me-1\"></i> Modifier mot de passe</a> <a class=\"dropdown-item\" href=\"/logout\"><i class=\"mdi mdi-logout text-muted fs-16 align-middle me-1\"></i> Déconnexion</a></div></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</span></span></span></button><div class=\"dropdown-menu dropdown-menu-end\"><a class=\"dropdown-item\" href=\"/profile/password\"><i class=\"ri-lock-password-line text-muted fs-16 align-middle me-1\"></i> Modifier mot de passe</a><form action=\"/logout\" method=\"post\" class=\"d-inline w-100\"><input type=\"hidden\" name=\"csrf_token\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var17 string
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.CSRF)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/layouts/top-header.templ`, Line: 94, Col: 61}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\"> <button type=\"submit\" class=\"dropdown-item border-0 bg-transparent w-100 text-start\"><i class=\"mdi mdi-logout text-muted fs-16 align-middle me-1\"></i> Déconnexion</button></form></div></div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

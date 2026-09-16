@@ -11,11 +11,12 @@ import (
 )
 
 type NotificationService struct {
-	db *gorm.DB
+	db       *gorm.DB
+	emailSvc *EmailService
 }
 
-func NewNotificationService(db *gorm.DB) *NotificationService {
-	return &NotificationService{db: db}
+func NewNotificationService(db *gorm.DB, emailSvc *EmailService) *NotificationService {
+	return &NotificationService{db: db, emailSvc: emailSvc}
 }
 
 func (s *NotificationService) ListForUser(ctx context.Context, userID uint, limit int) ([]models.Notification, error) {
@@ -61,6 +62,13 @@ func (s *NotificationService) MarkStepRead(ctx context.Context, requisitionID ui
 		Update("read_at", &now).Error
 }
 
+func (s *NotificationService) MarkAllRead(ctx context.Context, userID uint) error {
+	now := time.Now()
+	return s.db.WithContext(ctx).Model(&models.Notification{}).
+		Where("user_id = ? AND read_at IS NULL", userID).
+		Update("read_at", &now).Error
+}
+
 func (s *NotificationService) MarkAllReadForRequisition(ctx context.Context, requisitionID uint) error {
 	now := time.Now()
 	return s.db.WithContext(ctx).Model(&models.Notification{}).
@@ -77,7 +85,18 @@ func (s *NotificationService) NotifyStep(ctx context.Context, requisitionID uint
 		return nil
 	}
 	msg := stepNotificationMessage(step, title, actorName)
-	return s.createForUsers(ctx, requisitionID, step, msg, users)
+	if err := s.createForUsers(ctx, requisitionID, step, msg, users); err != nil {
+		return err
+	}
+	if s.emailSvc != nil && s.emailSvc.IsEnabled(ctx) {
+		subject := fmt.Sprintf("Réquisition — %s", title)
+		for _, u := range users {
+			if u.Email != "" {
+				_ = s.emailSvc.Send(ctx, u.Email, subject, msg)
+			}
+		}
+	}
+	return nil
 }
 
 func (s *NotificationService) createForUsers(ctx context.Context, requisitionID uint, step models.RequisitionStep, message string, users []models.User) error {

@@ -9,100 +9,468 @@ import (
 )
 
 templ Dashboard(vm viewmodels.LayoutVM, m *services.DashboardMetrics, user *models.User) {
-	@AppLayoutCharts(vm, dashboardBody(m, user))
+	@AppLayoutCharts(vm, dashboardBody(vm, m, user))
 }
 
-templ dashboardBody(m *services.DashboardMetrics, user *models.User) {
+templ dashboardBody(vm viewmodels.LayoutVM, m *services.DashboardMetrics, user *models.User) {
 	@components.PageHeader("Tableau de bord", "")
-	<div class="row">
-		if user != nil && user.CanViewAccountBalance() {
-			<div class="col-xl-3 col-md-6">
-				<div class="card card-animate">
-					<div class="card-body">
-						<p class="text-uppercase fw-medium text-muted mb-0">Solde comptes</p>
-						<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%.2f USD", m.AccountBalance) }</h4>
-					</div>
-				</div>
-			</div>
-		} else if user != nil && user.HasRole(models.RoleSuperAdmin) {
-			<div class="col-xl-3 col-md-6">
-				<div class="card card-animate">
-					<div class="card-body">
-						<p class="text-uppercase fw-medium text-muted mb-0">Réquisitions totales</p>
-						<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%d", m.TotalRequisitionsCount) }</h4>
-					</div>
-				</div>
-			</div>
-		} else if user != nil {
-			<div class="col-xl-3 col-md-6">
-				<div class="card card-animate">
-					<div class="card-body">
-						<p class="text-uppercase fw-medium text-muted mb-0">Mes réquisitions</p>
-						<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%d", m.MyRequisitionsCount) }</h4>
-					</div>
-				</div>
-			</div>
-		}
-		<div class="col-xl-3 col-md-6">
-			<div class="card card-animate">
-				<div class="card-body">
-					<p class="text-uppercase fw-medium text-muted mb-0">En validation</p>
-					<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%d", m.PendingRequisitions) }</h4>
-				</div>
-			</div>
-		</div>
-		<div class="col-xl-3 col-md-6">
-			<div class="card card-animate">
-				<div class="card-body">
-					<p class="text-uppercase fw-medium text-muted mb-0">À décaisser</p>
-					<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%d", m.PendingDisbursement) }</h4>
-				</div>
-			</div>
-		</div>
-		<div class="col-xl-3 col-md-6">
-			<div class="card card-animate">
-				<div class="card-body">
-					<p class="text-uppercase fw-medium text-muted mb-0">Décaissé ce mois</p>
-					<h4 class="fs-22 fw-semibold mb-0">{ fmt.Sprintf("%.2f USD", m.DisbursedMonth) }</h4>
-				</div>
-			</div>
-		</div>
+	if m == nil {
+		<div class="alert alert-info">Aucune donnée disponible.</div>
+	} else if user != nil && user.PrimaryRole() == models.RoleSuperAdmin {
+		@dashSuperAdmin(vm, m)
+	} else if user != nil && user.PrimaryRole() == models.RoleAdmin {
+		@dashAdmin(vm, m)
+	} else if user != nil && user.PrimaryRole() == models.RoleAccountant {
+		@dashAccountant(vm, m, user)
+	} else if user != nil && user.PrimaryRole() == models.RoleCashier {
+		@dashCashier(vm, m)
+	} else {
+		@dashStaff(vm, m)
+	}
+	@dashChartsScript(m)
+}
+
+// ── Super Admin ──────────────────────────────────────────────
+
+templ dashSuperAdmin(vm viewmodels.LayoutVM, m *services.DashboardMetrics) {
+	<div class="row g-3 mb-4">
+		@dashMetricCard("Réquisitions", fmt.Sprintf("%d", m.TotalRequisitionsCount), "ri-file-list-3-line", "primary")
+		@dashMetricCard("À traiter", fmt.Sprintf("%d", m.PendingRequisitions), "ri-time-line", "warning")
+		@dashMetricCard("À décaisser", fmt.Sprintf("%d", m.PendingDisbursement), "ri-wallet-3-line", "info")
+		@dashMetricCard("Utilisateurs actifs", fmt.Sprintf("%d / %d", m.ActiveUsersCount, m.UsersCount), "ri-team-line", "success")
 	</div>
-	<div class="row">
+	<div class="row g-3 mb-4">
+		@dashMetricCard("Pipeline comptable", fmt.Sprintf("%d", m.PendingAccountant), "ri-calculator-line", "success")
+		@dashMetricCard("Pipeline admin", fmt.Sprintf("%d", m.PendingAdmin), "ri-shield-user-line", "primary")
+		@dashMetricCard("Pipeline super admin", fmt.Sprintf("%d", m.PendingSuperAdmin), "ri-vip-crown-line", "info")
+		@dashMetricCard("Décaissé ce mois", fmt.Sprintf("%.2f $", m.DisbursedMonth), "ri-money-dollar-circle-line", "danger")
+	</div>
+	<div class="row g-3 mb-4">
 		<div class="col-xl-8">
-			<div class="card">
-				<div class="card-header"><h4 class="card-title mb-0">Décaissements (7 jours)</h4></div>
-				<div class="card-body">
-					<div id="disbursement-chart" data-labels={ chartLabelsJSON(m) } data-values={ chartValuesJSON(m) }></div>
-				</div>
-			</div>
+			@dashDisbursementChart(m)
 		</div>
 		<div class="col-xl-4">
-			<div class="card">
-				<div class="card-header"><h4 class="card-title mb-0">Actions rapides</h4></div>
-				<div class="card-body d-grid gap-2">
-					if user != nil && (user.HasRole(models.RoleStaff) || user.HasRole(models.RoleAdmin)) {
-						<a href="/requisitions/new" class="btn btn-primary">Nouvelle réquisition</a>
-					}
-					<a href="/requisitions?filter=pending_validation" class="btn btn-warning">Validations en attente</a>
-					<a href="/requisitions?filter=pending_disbursement" class="btn btn-info">Prêtes au décaissement</a>
+			@dashStatusChart(m)
+		</div>
+	</div>
+	<div class="row g-3 mb-4">
+		<div class="col-xl-6">
+			@dashCategoryChart(m)
+		</div>
+		<div class="col-xl-6">
+			@dashQuickActions(vm, []dashAction{
+				{"/users", "Utilisateurs", "ri-team-line", "btn-soft-primary"},
+				{"/requisitions?filter=pending_validation", "Validations", "ri-checkbox-circle-line", "btn-soft-warning"},
+				{"/stats", "Statistiques", "ri-line-chart-line", "btn-soft-info"},
+				{"/audit", "Journal d'audit", "ri-history-line", "btn-soft-secondary"},
+				{"/settings", "Paramètres", "ri-settings-3-line", "btn-soft-dark"},
+				{"/requisitions/new", "Nouvelle réquisition", "ri-add-line", "btn-primary"},
+			})
+		</div>
+	</div>
+	<div class="row g-3">
+		<div class="col-xl-6">
+			@dashReqList("File d'actions", "Toutes les étapes ouvertes", m.ActionQueue, "/requisitions")
+		</div>
+		<div class="col-xl-6">
+			@dashReqList("Réquisitions récentes", "Dernières soumissions", m.RecentList, "/requisitions")
+		</div>
+	</div>
+}
+
+// ── Admin ────────────────────────────────────────────────────
+
+templ dashAdmin(vm viewmodels.LayoutVM, m *services.DashboardMetrics) {
+	if m.PendingAdmin > 0 {
+		<div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+			<i class="ri-shield-user-line fs-20"></i>
+			<div class="flex-grow-1">
+				<strong>{ fmt.Sprintf("%d réquisition(s) en attente de votre validation", m.PendingAdmin) }</strong>
+			</div>
+			<a href="/requisitions?filter=pending_validation" class="btn btn-sm btn-warning">Traiter</a>
+		</div>
+	}
+	<div class="row g-3 mb-4">
+		@dashMetricCard("À valider (moi)", fmt.Sprintf("%d", m.PendingAdmin), "ri-shield-check-line", "warning")
+		@dashMetricCard("Total réquisitions", fmt.Sprintf("%d", m.TotalRequisitionsCount), "ri-file-list-3-line", "primary")
+		@dashMetricCard("À décaisser", fmt.Sprintf("%d · %.0f $", m.PendingDisbursement, m.PendingDisbursementAmt), "ri-wallet-3-line", "info")
+		@dashMetricCard("Décaissé ce mois", fmt.Sprintf("%.2f $", m.DisbursedMonth), "ri-money-dollar-circle-line", "success")
+	</div>
+	<div class="row g-3 mb-4">
+		<div class="col-xl-8">
+			@dashDisbursementChart(m)
+		</div>
+		<div class="col-xl-4">
+			@dashStatusChart(m)
+		</div>
+	</div>
+	<div class="row g-3 mb-4">
+		<div class="col-xl-6">
+			@dashCategoryChart(m)
+		</div>
+		<div class="col-xl-6">
+			@dashQuickActions(vm, []dashAction{
+				{"/requisitions/new", "Nouvelle réquisition", "ri-add-line", "btn-primary"},
+				{"/requisitions?filter=pending_validation", "Mes validations", "ri-checkbox-circle-line", "btn-warning"},
+				{"/accounts", "Comptes", "ri-bank-line", "btn-soft-primary"},
+				{"/budgets", "Budgets", "ri-pie-chart-2-line", "btn-soft-info"},
+				{"/categories", "Catégories", "ri-price-tag-3-line", "btn-soft-secondary"},
+				{"/suppliers", "Fournisseurs", "ri-store-2-line", "btn-soft-success"},
+				{"/reports", "Rapports", "ri-bar-chart-line", "btn-soft-dark"},
+				{"/stats", "Statistiques", "ri-line-chart-line", "btn-soft-primary"},
+			})
+		</div>
+	</div>
+	<div class="row g-3">
+		<div class="col-xl-6">
+			@dashReqList("À valider", "Étape Admin", m.ActionQueue, "/requisitions?filter=pending_validation")
+		</div>
+		<div class="col-xl-6">
+			@dashReqList("Récentes", "Toutes les réquisitions", m.RecentList, "/requisitions")
+		</div>
+	</div>
+}
+
+// ── Comptable ────────────────────────────────────────────────
+
+templ dashAccountant(vm viewmodels.LayoutVM, m *services.DashboardMetrics, user *models.User) {
+	if m.PendingAccountant > 0 {
+		<div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+			<i class="ri-calculator-line fs-20"></i>
+			<div class="flex-grow-1">
+				<strong>{ fmt.Sprintf("%d réquisition(s) en attente de validation comptable", m.PendingAccountant) }</strong>
+			</div>
+			<a href="/requisitions?filter=pending_validation" class="btn btn-sm btn-warning">Valider</a>
+		</div>
+	}
+	<div class="row g-3 mb-4">
+		@dashMetricCard("Solde comptes", fmt.Sprintf("%.2f $", m.AccountBalance), "ri-bank-line", "primary")
+		@dashMetricCard("À valider", fmt.Sprintf("%d", m.PendingAccountant), "ri-checkbox-circle-line", "warning")
+		@dashMetricCard("À décaisser", fmt.Sprintf("%d · %.0f $", m.PendingDisbursement, m.PendingDisbursementAmt), "ri-wallet-3-line", "info")
+		@dashMetricCard("Décaissé ce mois", fmt.Sprintf("%.2f $", m.DisbursedMonth), "ri-money-dollar-circle-line", "success")
+	</div>
+	<div class="row g-3 mb-4">
+		<div class="col-xl-8">
+			@dashDisbursementChart(m)
+		</div>
+		<div class="col-xl-4">
+			@dashCategoryChart(m)
+		</div>
+	</div>
+	<div class="row g-3 mb-4">
+		<div class="col-xl-4">
+			@dashQuickActions(vm, accountantActions(m))
+		</div>
+		<div class="col-xl-8">
+			@dashReqList("File de validation comptable", "Pièces & fournisseurs", m.ActionQueue, "/requisitions?filter=pending_validation")
+		</div>
+	</div>
+	if m.CanDisburse {
+		<div class="row g-3">
+			<div class="col-12">
+				@dashReqList("Prêtes au décaissement", "Autorisation décaissement active", m.RecentList, "/requisitions?filter=pending_disbursement")
+			</div>
+		</div>
+	}
+}
+
+// ── Caissier ─────────────────────────────────────────────────
+
+templ dashCashier(vm viewmodels.LayoutVM, m *services.DashboardMetrics) {
+	if m.PendingDisbursement > 0 {
+		<div class="alert alert-info d-flex align-items-center gap-2 mb-4">
+			<i class="ri-wallet-3-line fs-20"></i>
+			<div class="flex-grow-1">
+				<strong>{ fmt.Sprintf("%d décaissement(s) en attente — %.2f $", m.PendingDisbursement, m.PendingDisbursementAmt) }</strong>
+			</div>
+			<a href="/requisitions?filter=pending_disbursement" class="btn btn-sm btn-info">Décaisser</a>
+		</div>
+	}
+	<div class="row g-3 mb-4">
+		@dashMetricCard("Solde comptes", fmt.Sprintf("%.2f $", m.AccountBalance), "ri-bank-line", "primary")
+		@dashMetricCard("À décaisser", fmt.Sprintf("%d", m.PendingDisbursement), "ri-hand-coin-line", "warning")
+		@dashMetricCard("Montant en attente", fmt.Sprintf("%.2f $", m.PendingDisbursementAmt), "ri-funds-line", "info")
+		@dashMetricCard("Décaissé aujourd'hui", fmt.Sprintf("%.2f $", m.DisbursedToday), "ri-calendar-check-line", "success")
+	</div>
+	<div class="row g-3 mb-4">
+		<div class="col-xl-8">
+			@dashDisbursementChart(m)
+		</div>
+		<div class="col-xl-4">
+			@dashQuickActions(vm, []dashAction{
+				{"/requisitions?filter=pending_disbursement", "File de décaissement", "ri-wallet-3-line", "btn-info"},
+				{"/accounts", "Comptes", "ri-bank-line", "btn-soft-primary"},
+				{"/reports", "Rapports", "ri-bar-chart-line", "btn-soft-secondary"},
+				{"/stats", "Statistiques", "ri-line-chart-line", "btn-soft-success"},
+			})
+			<div class="card mt-3">
+				<div class="card-body">
+					<p class="text-muted text-uppercase fs-11 mb-1">Décaissé ce mois</p>
+					<h3 class="mb-0 text-success">{ fmt.Sprintf("%.2f USD", m.DisbursedMonth) }</h3>
 				</div>
 			</div>
 		</div>
 	</div>
+	<div class="row g-3">
+		<div class="col-xl-6">
+			@dashReqList("À décaisser maintenant", "Validation complète", m.ActionQueue, "/requisitions?filter=pending_disbursement")
+		</div>
+		<div class="col-xl-6">
+			@dashReqList("Derniers décaissements", "Historique récent", m.RecentList, "/reports")
+		</div>
+	</div>
+}
+
+// ── Staff ────────────────────────────────────────────────────
+
+templ dashStaff(vm viewmodels.LayoutVM, m *services.DashboardMetrics) {
+	<div class="row g-3 mb-4">
+		@dashMetricCard("Mes réquisitions", fmt.Sprintf("%d", m.MyRequisitionsCount), "ri-file-list-3-line", "primary")
+		@dashMetricCard("En cours", fmt.Sprintf("%d", m.MyOpenCount), "ri-loader-4-line", "warning")
+		@dashMetricCard("Terminées", fmt.Sprintf("%d", m.MyCompletedCount), "ri-checkbox-circle-line", "success")
+		@dashMetricCard("Annulées", fmt.Sprintf("%d", m.MyCancelledCount), "ri-close-circle-line", "danger")
+	</div>
+	<div class="row g-3 mb-4">
+		<div class="col-xl-4">
+			@dashQuickActions(vm, []dashAction{
+				{"/requisitions/new", "Nouvelle réquisition", "ri-add-line", "btn-primary"},
+				{"/requisitions?filter=mine", "Mes réquisitions", "ri-folder-user-line", "btn-soft-primary"},
+				{"/notifications", "Notifications", "ri-notification-3-line", "btn-soft-warning"},
+			})
+			if m.UnreadNotifications > 0 {
+				<div class="card mt-3 border-warning">
+					<div class="card-body d-flex align-items-center gap-2">
+						<i class="ri-notification-badge-line text-warning fs-20"></i>
+						<span>{ fmt.Sprintf("%d notification(s) non lue(s)", m.UnreadNotifications) }</span>
+						<a href="/notifications" class="ms-auto btn btn-sm btn-soft-warning">Voir</a>
+					</div>
+				</div>
+			}
+		</div>
+		<div class="col-xl-8">
+			<div class="card border-0 shadow-sm">
+				<div class="card-header bg-transparent border-bottom"><h5 class="card-title mb-0">Suivi de mes demandes</h5></div>
+				<div class="card-body">
+					<div
+						id="staff-status-chart"
+						data-open={ fmt.Sprintf("%d", m.MyOpenCount) }
+						data-done={ fmt.Sprintf("%d", m.MyCompletedCount) }
+						data-cancel={ fmt.Sprintf("%d", m.MyCancelledCount) }
+						style="min-height:260px"
+					></div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="row g-3">
+		<div class="col-xl-6">
+			@dashReqList("En cours de validation", "Mes demandes ouvertes", m.ActionQueue, "/requisitions?filter=mine")
+		</div>
+		<div class="col-xl-6">
+			@dashReqList("Historique", "Mes dernières réquisitions", m.RecentList, "/requisitions?filter=mine")
+		</div>
+	</div>
+}
+
+// ── Shared UI pieces ─────────────────────────────────────────
+
+type dashAction struct {
+	Href, Label, Icon, Class string
+}
+
+func accountantActions(m *services.DashboardMetrics) []dashAction {
+	actions := []dashAction{
+		{"/requisitions?filter=pending_validation", "Validations comptables", "ri-checkbox-circle-line", "btn-warning"},
+		{"/accounts", "Comptes & soldes", "ri-bank-line", "btn-soft-primary"},
+		{"/budgets", "Budgets", "ri-pie-chart-2-line", "btn-soft-info"},
+		{"/suppliers", "Fournisseurs", "ri-store-2-line", "btn-soft-success"},
+		{"/reports", "Rapports", "ri-bar-chart-line", "btn-soft-secondary"},
+		{"/stats", "Statistiques", "ri-line-chart-line", "btn-soft-dark"},
+	}
+	if m != nil && m.CanDisburse {
+		actions = append([]dashAction{{"/requisitions?filter=pending_disbursement", "Décaisser", "ri-wallet-3-line", "btn-info"}}, actions...)
+	}
+	return actions
+}
+
+templ dashMetricCard(label, value, icon, color string) {
+	<div class="col-xl-3 col-md-6">
+		<div class="card card-animate border-0 shadow-sm h-100">
+			<div class="card-body">
+				<div class="d-flex align-items-center">
+					<div class="flex-grow-1">
+						<p class="text-uppercase fw-medium text-muted fs-12 mb-1">{ label }</p>
+						<h4 class="fs-20 fw-semibold mb-0">{ value }</h4>
+					</div>
+					<div class={ "avatar-sm flex-shrink-0" }>
+						<span class={ "avatar-title rounded fs-3 bg-" + color + "-subtle" + " text-" + color }>
+							<i class={ icon }></i>
+						</span>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+templ dashDisbursementChart(m *services.DashboardMetrics) {
+	<div class="card border-0 shadow-sm h-100">
+		<div class="card-header bg-transparent border-bottom">
+			<h5 class="card-title mb-0">Décaissements (7 derniers jours)</h5>
+		</div>
+		<div class="card-body">
+			<div id="disbursement-chart" data-labels={ chartLabelsJSON(m) } data-values={ chartValuesJSON(m) } style="min-height:300px"></div>
+		</div>
+	</div>
+}
+
+templ dashStatusChart(m *services.DashboardMetrics) {
+	<div class="card border-0 shadow-sm h-100">
+		<div class="card-header bg-transparent border-bottom">
+			<h5 class="card-title mb-0">Répartition du pipeline</h5>
+		</div>
+		<div class="card-body">
+			<div id="status-chart" data-labels={ statusLabelsJSON(m) } data-values={ statusValuesJSON(m) } style="min-height:300px"></div>
+		</div>
+	</div>
+}
+
+templ dashCategoryChart(m *services.DashboardMetrics) {
+	<div class="card border-0 shadow-sm h-100">
+		<div class="card-header bg-transparent border-bottom">
+			<h5 class="card-title mb-0">Dépenses par catégorie (année)</h5>
+		</div>
+		<div class="card-body">
+			if len(m.CategoryLabels) == 0 {
+				<p class="text-muted text-center py-5 mb-0">Aucune dépense catégorisée cette année.</p>
+			} else {
+				<div id="category-chart" data-labels={ categoryLabelsJSON(m) } data-values={ categoryValuesJSON(m) } style="min-height:280px"></div>
+			}
+		</div>
+	</div>
+}
+
+templ dashQuickActions(vm viewmodels.LayoutVM, actions []dashAction) {
+	<div class="card border-0 shadow-sm h-100">
+		<div class="card-header bg-transparent border-bottom">
+			<h5 class="card-title mb-0">Actions rapides</h5>
+		</div>
+		<div class="card-body d-grid gap-2">
+			for _, a := range actions {
+				<a href={ a.Href } class={ "btn text-start", a.Class }>
+					<i class={ a.Icon + " me-2" }></i>{ a.Label }
+				</a>
+			}
+		</div>
+	</div>
+}
+
+templ dashReqList(title, subtitle string, rows []services.DashboardReqRow, seeAll string) {
+	<div class="card border-0 shadow-sm h-100">
+		<div class="card-header bg-transparent border-bottom d-flex align-items-center justify-content-between">
+			<div>
+				<h5 class="card-title mb-0">{ title }</h5>
+				if subtitle != "" {
+					<small class="text-muted">{ subtitle }</small>
+				}
+			</div>
+			<a href={ seeAll } class="btn btn-sm btn-soft-primary">Tout voir</a>
+		</div>
+		<div class="card-body p-0">
+			if len(rows) == 0 {
+				<p class="text-muted text-center py-4 mb-0">Aucune entrée</p>
+			} else {
+				<div class="table-responsive">
+					<table class="table table-hover align-middle mb-0">
+						<thead class="table-light">
+							<tr>
+								<th>Titre</th>
+								<th>Auteur</th>
+								<th class="text-end">Montant</th>
+								<th class="text-end">Étape</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range rows {
+								<tr>
+									<td>
+										<a href={ fmt.Sprintf("/requisitions/%d", r.ID) } class="fw-medium text-body">{ r.Title }</a>
+										<div class="text-muted fs-11">{ r.Date }</div>
+									</td>
+									<td class="text-muted small">{ r.Author }</td>
+									<td class="text-end fw-semibold">{ fmt.Sprintf("%.2f $", r.Amount) }</td>
+									<td class="text-end"><span class={ "badge", r.Badge }>{ r.StepLabel }</span></td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ dashChartsScript(m *services.DashboardMetrics) {
 	<script>
 		document.addEventListener('DOMContentLoaded', function() {
-			var el = document.getElementById('disbursement-chart');
-			if (!el || typeof ApexCharts === 'undefined') return;
-			var labels = JSON.parse(el.dataset.labels || '[]');
-			var values = JSON.parse(el.dataset.values || '[]');
-			new ApexCharts(el, {
-				chart: { type: 'bar', height: 320, toolbar: { show: false } },
-				series: [{ name: 'Décaissements', data: values }],
-				xaxis: { categories: labels },
-				colors: ['#405189'],
-				dataLabels: { enabled: false }
-			}).render();
+			if (typeof ApexCharts === 'undefined') return;
+
+			var disb = document.getElementById('disbursement-chart');
+			if (disb) {
+				new ApexCharts(disb, {
+					chart: { type: 'area', height: 300, toolbar: { show: false }, zoom: { enabled: false } },
+					series: [{ name: 'Décaissements', data: JSON.parse(disb.dataset.values || '[]') }],
+					xaxis: { categories: JSON.parse(disb.dataset.labels || '[]') },
+					colors: ['#405189'],
+					dataLabels: { enabled: false },
+					stroke: { curve: 'smooth', width: 2 },
+					fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
+					yaxis: { labels: { formatter: function(v) { return v.toFixed(0) + ' $'; } } },
+					tooltip: { y: { formatter: function(v) { return v.toFixed(2) + ' USD'; } } }
+				}).render();
+			}
+
+			var status = document.getElementById('status-chart');
+			if (status) {
+				new ApexCharts(status, {
+					chart: { type: 'donut', height: 300 },
+					series: JSON.parse(status.dataset.values || '[]').map(Number),
+					labels: JSON.parse(status.dataset.labels || '[]'),
+					colors: ['#0ab39c', '#405189', '#7c3aed', '#299cdb', '#0ab39c', '#f06548'],
+					legend: { position: 'bottom' },
+					dataLabels: { enabled: false },
+					plotOptions: { pie: { donut: { size: '65%' } } }
+				}).render();
+			}
+
+			var staffStatus = document.getElementById('staff-status-chart');
+			if (staffStatus) {
+				new ApexCharts(staffStatus, {
+					chart: { type: 'donut', height: 260 },
+					series: [
+						Number(staffStatus.dataset.open || 0),
+						Number(staffStatus.dataset.done || 0),
+						Number(staffStatus.dataset.cancel || 0)
+					],
+					labels: ['En cours', 'Terminées', 'Annulées'],
+					colors: ['#f7b84b', '#0ab39c', '#f06548'],
+					legend: { position: 'bottom' },
+					dataLabels: { enabled: false }
+				}).render();
+			}
+
+			var cat = document.getElementById('category-chart');
+			if (cat) {
+				new ApexCharts(cat, {
+					chart: { type: 'bar', height: 280, toolbar: { show: false } },
+					series: [{ name: 'Montant', data: JSON.parse(cat.dataset.values || '[]') }],
+					xaxis: { categories: JSON.parse(cat.dataset.labels || '[]') },
+					colors: ['#299cdb'],
+					plotOptions: { bar: { borderRadius: 4, horizontal: true } },
+					dataLabels: { enabled: false },
+					tooltip: { y: { formatter: function(v) { return v.toFixed(2) + ' USD'; } } }
+				}).render();
+			}
 		});
 	</script>
 }
@@ -120,5 +488,37 @@ func chartValuesJSON(m *services.DashboardMetrics) string {
 		return "[]"
 	}
 	b, _ := jsonMarshal(m.ChartValues)
+	return string(b)
+}
+
+func statusLabelsJSON(m *services.DashboardMetrics) string {
+	if m == nil || len(m.StatusLabels) == 0 {
+		return "[]"
+	}
+	b, _ := jsonMarshal(m.StatusLabels)
+	return string(b)
+}
+
+func statusValuesJSON(m *services.DashboardMetrics) string {
+	if m == nil || len(m.StatusValues) == 0 {
+		return "[]"
+	}
+	b, _ := jsonMarshal(m.StatusValues)
+	return string(b)
+}
+
+func categoryLabelsJSON(m *services.DashboardMetrics) string {
+	if m == nil || len(m.CategoryLabels) == 0 {
+		return "[]"
+	}
+	b, _ := jsonMarshal(m.CategoryLabels)
+	return string(b)
+}
+
+func categoryValuesJSON(m *services.DashboardMetrics) string {
+	if m == nil || len(m.CategoryValues) == 0 {
+		return "[]"
+	}
+	b, _ := jsonMarshal(m.CategoryValues)
 	return string(b)
 }

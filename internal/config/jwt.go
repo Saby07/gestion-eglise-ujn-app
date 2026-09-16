@@ -22,10 +22,30 @@ type JWTConfig struct {
 	CookieSameSite string
 }
 
+var weakSecrets = map[string]bool{
+	"change-me-to-a-long-random-secret-in-production": true,
+	"secret":      true,
+	"jwt_secret":  true,
+	"changeme":    true,
+	"ChangeMe123!": true,
+}
+
 func LoadJWTConfig() (JWTConfig, error) {
 	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if secret == "" {
 		return JWTConfig{}, errors.New("JWT_SECRET manquant")
+	}
+	if len(secret) < 32 {
+		release := strings.EqualFold(strings.TrimSpace(os.Getenv("GIN_MODE")), "release")
+		if release {
+			return JWTConfig{}, errors.New("JWT_SECRET doit contenir au moins 32 caractères")
+		}
+	}
+	if weakSecrets[strings.ToLower(secret)] || weakSecrets[secret] {
+		release := strings.EqualFold(strings.TrimSpace(os.Getenv("GIN_MODE")), "release")
+		if release {
+			return JWTConfig{}, errors.New("JWT_SECRET trop faible ou valeur par défaut")
+		}
 	}
 	ttlHours := 24
 	if v := strings.TrimSpace(os.Getenv("JWT_TTL_HOURS")); v != "" {
@@ -70,8 +90,11 @@ func NewToken(cfg JWTConfig, userID uint, ttl time.Duration) (string, error) {
 
 func ParseToken(cfg JWTConfig, token string) (*Claims, error) {
 	t, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+		if t.Method != jwt.SigningMethodHS256 {
+			return nil, errors.New("algorithme JWT non autorisé")
+		}
 		return cfg.Secret, nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil {
 		return nil, err
 	}

@@ -35,7 +35,7 @@ func AppLayout(vm viewmodels.LayoutVM, content templ.Component) templ.Component 
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = layouts.Base(vm.Title, layouts.Head(), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), layouts.Scripts(), appContent(vm, content)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Base(vm.Title, vm.DarkMode, layouts.Head(churchDisplayName(vm)), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), layouts.Scripts(), appContent(vm, content)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -105,7 +105,7 @@ func AppLayoutCharts(vm viewmodels.LayoutVM, content templ.Component) templ.Comp
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = layouts.Base(vm.Title, layouts.Head(), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), chartScripts(), appContent(vm, content)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Base(vm.Title, vm.DarkMode, layouts.Head(churchDisplayName(vm)), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), chartScripts(), appContent(vm, content)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -134,7 +134,7 @@ func AppLayoutDataTables(vm viewmodels.LayoutVM, content templ.Component) templ.
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = layouts.Base(vm.Title, dataTablesHead(), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), dataTablesScripts(), appContent(vm, content)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Base(vm.Title, vm.DarkMode, dataTablesHead(vm), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), dataTablesScripts(), appContent(vm, content)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -142,7 +142,7 @@ func AppLayoutDataTables(vm viewmodels.LayoutVM, content templ.Component) templ.
 	})
 }
 
-func dataTablesHead() templ.Component {
+func dataTablesHead(vm viewmodels.LayoutVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -163,7 +163,7 @@ func dataTablesHead() templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = layouts.Head().Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Head(churchDisplayName(vm)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -173,6 +173,13 @@ func dataTablesHead() templ.Component {
 		}
 		return nil
 	})
+}
+
+func churchDisplayName(vm viewmodels.LayoutVM) string {
+	if vm.ChurchName != "" {
+		return vm.ChurchName
+	}
+	return "Eglise UJN"
 }
 
 func dataTablesScripts() templ.Component {

@@ -1,8 +1,8 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +13,7 @@ import (
 	"eglise_ujn/internal/services"
 	"eglise_ujn/internal/upload"
 	"eglise_ujn/templates/pages"
+	"eglise_ujn/templates/viewmodels"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,21 +37,17 @@ func (h *AccountsHandler) NewPage(c *gin.Context) {
 
 func (h *AccountsHandler) Create(c *gin.Context) {
 	cur := middlewares.CurrentUser(c)
-	amount, _ := strconv.ParseFloat(strings.TrimSpace(c.PostForm("initial_amount")), 64)
-	acc, err := h.svc.Create(c.Request.Context(),
+	_, err := h.svc.Create(c.Request.Context(),
 		strings.TrimSpace(c.PostForm("name")),
 		strings.TrimSpace(c.PostForm("description")),
 		strings.TrimSpace(c.PostForm("currency")),
 		cur.FullName(),
 	)
 	if err != nil {
-		c.Redirect(http.StatusFound, "/accounts/new?alert=Erreur")
+		httputil.RedirectFlash(c, "/accounts/new", "Erreur lors de la création")
 		return
 	}
-	if amount > 0 {
-		_ = h.svc.Fund(c.Request.Context(), acc.ID, amount, "Approvisionnement initial", cur.ID, cur.FullName())
-	}
-	c.Redirect(http.StatusFound, "/accounts?alert=Compte+cree")
+	httputil.RedirectFlash(c, "/accounts", "Compte créé")
 }
 
 func (h *AccountsHandler) Detail(c *gin.Context) {
@@ -71,30 +68,74 @@ func (h *AccountsHandler) Fund(c *gin.Context) {
 	cur := middlewares.CurrentUser(c)
 	err := h.svc.Fund(c.Request.Context(), uint(id), amount, strings.TrimSpace(c.PostForm("label")), cur.ID, cur.FullName())
 	if err != nil {
-		c.Redirect(http.StatusFound, "/accounts/"+c.Param("id")+"?alert=Erreur+approvisionnement")
+		httputil.RedirectFlash(c, "/accounts/"+c.Param("id"), "Erreur lors de l'approvisionnement")
 		return
 	}
-	c.Redirect(http.StatusFound, "/accounts/"+c.Param("id")+"?alert=Compte+approvisionne")
+	httputil.RedirectFlash(c, "/accounts/"+c.Param("id"), "Compte approvisionné")
 }
 
 type RequisitionsHandler struct {
-	svc        *services.RequisitionService
-	accountSvc *services.AccountService
+	svc         *services.RequisitionService
+	accountSvc  *services.AccountService
+	categorySvc *services.CategoryService
+	supplierSvc *services.SupplierService
+	auditSvc    *services.AuditService
 }
 
-func NewRequisitionsHandler(svc *services.RequisitionService, accountSvc *services.AccountService) *RequisitionsHandler {
-	return &RequisitionsHandler{svc: svc, accountSvc: accountSvc}
+func NewRequisitionsHandler(
+	svc *services.RequisitionService,
+	accountSvc *services.AccountService,
+	categorySvc *services.CategoryService,
+	supplierSvc *services.SupplierService,
+	auditSvc *services.AuditService,
+) *RequisitionsHandler {
+	return &RequisitionsHandler{
+		svc: svc, accountSvc: accountSvc,
+		categorySvc: categorySvc, supplierSvc: supplierSvc, auditSvc: auditSvc,
+	}
 }
 
 func (h *RequisitionsHandler) List(c *gin.Context) {
 	user := middlewares.CurrentUser(c)
 	filter := c.DefaultQuery("filter", "all")
-	list, _ := h.svc.List(c.Request.Context(), filter, user)
-	httputil.Render(c, http.StatusOK, pages.RequisitionsList(layoutFromCtx(c, "Réquisitions", "requisitions"), list, filter))
+	searchFilter := parseSearchFilter(c)
+	var list []models.Requisition
+	var err error
+	if hasSearchQuery(c) {
+		list, err = h.svc.ListWithSearch(c.Request.Context(), searchFilter, user)
+	} else {
+		list, err = h.svc.List(c.Request.Context(), filter, user)
+	}
+	if err != nil {
+		list = nil
+	}
+	categories, _ := h.categorySvc.List(c.Request.Context(), true)
+	search := viewmodels.RequisitionSearchVM{
+		Q:          searchFilter.Q,
+		From:       strings.TrimSpace(c.Query("from")),
+		To:         strings.TrimSpace(c.Query("to")),
+		CategoryID: strings.TrimSpace(c.Query("category_id")),
+	}
+	httputil.Render(c, http.StatusOK, pages.RequisitionsList(layoutFromCtx(c, "Réquisitions", "requisitions"), list, filter, search, mapCategories(categories)))
+}
+
+func hasSearchQuery(c *gin.Context) bool {
+	return strings.TrimSpace(c.Query("q")) != "" ||
+		strings.TrimSpace(c.Query("from")) != "" ||
+		strings.TrimSpace(c.Query("to")) != "" ||
+		strings.TrimSpace(c.Query("category_id")) != "" ||
+		strings.TrimSpace(c.Query("min_amount")) != "" ||
+		strings.TrimSpace(c.Query("max_amount")) != ""
 }
 
 func (h *RequisitionsHandler) NewPage(c *gin.Context) {
-	httputil.Render(c, http.StatusOK, pages.RequisitionForm(layoutFromCtx(c, "Nouvelle réquisition", "requisitions")))
+	accounts, _ := h.accountSvc.List(c.Request.Context())
+	categories, _ := h.categorySvc.List(c.Request.Context(), true)
+	suppliers, _ := h.supplierSvc.List(c.Request.Context(), true)
+	httputil.Render(c, http.StatusOK, pages.RequisitionForm(
+		layoutFromCtx(c, "Nouvelle réquisition", "requisitions"),
+		accounts, mapCategories(categories), mapSuppliers(suppliers),
+	))
 }
 
 func (h *RequisitionsHandler) Create(c *gin.Context) {
@@ -106,12 +147,68 @@ func (h *RequisitionsHandler) Create(c *gin.Context) {
 		date = time.Now()
 	}
 	items := parseItems(c)
-	_, err = h.svc.Create(c.Request.Context(), user, title, date, items, nil)
+	categoryID := parseOptionalUint(c.PostForm("category_id"))
+	accountID := parseOptionalUint(c.PostForm("account_id"))
+	supplierID := parseOptionalUint(c.PostForm("supplier_id"))
+	_, err = h.svc.Create(c.Request.Context(), user, title, date, items, categoryID, accountID, supplierID)
 	if err != nil {
-		c.Redirect(http.StatusFound, "/requisitions/new?alert="+err.Error())
+		httputil.RedirectFlash(c, "/requisitions/new", "Erreur lors de la création")
 		return
 	}
-	c.Redirect(http.StatusFound, "/requisitions?alert=Requisition+creee")
+	httputil.RedirectFlash(c, "/requisitions", "Réquisition créée")
+}
+
+func (h *RequisitionsHandler) EditPage(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	user := middlewares.CurrentUser(c)
+	req, err := h.svc.GetByID(c.Request.Context(), uint(id))
+	if err != nil {
+		httputil.RedirectFlash(c, "/requisitions", "Réquisition introuvable")
+		return
+	}
+	if !h.svc.CanEdit(user, req) {
+		httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), "Modification non autorisée")
+		return
+	}
+	accounts, _ := h.accountSvc.List(c.Request.Context())
+	categories, _ := h.categorySvc.List(c.Request.Context(), true)
+	suppliers, _ := h.supplierSvc.List(c.Request.Context(), true)
+	httputil.Render(c, http.StatusOK, pages.RequisitionEditForm(
+		layoutFromCtx(c, "Modifier réquisition", "requisitions"),
+		req, accounts, mapCategories(categories), mapSuppliers(suppliers),
+	))
+}
+
+func (h *RequisitionsHandler) Update(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	user := middlewares.CurrentUser(c)
+	title := strings.TrimSpace(c.PostForm("title"))
+	dateStr := strings.TrimSpace(c.PostForm("date"))
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		date = time.Now()
+	}
+	items := parseItems(c)
+	categoryID := parseOptionalUint(c.PostForm("category_id"))
+	accountID := parseOptionalUint(c.PostForm("account_id"))
+	supplierID := parseOptionalUint(c.PostForm("supplier_id"))
+	err = h.svc.Update(c.Request.Context(), uint(id), user, title, date, items, categoryID, accountID, supplierID)
+	if err != nil {
+		httputil.RedirectFlash(c, "/requisitions/"+c.Param("id")+"/edit", requisitionErrMsg(err))
+		return
+	}
+	httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), "Réquisition mise à jour")
+}
+
+func (h *RequisitionsHandler) Return(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	user := middlewares.CurrentUser(c)
+	err := h.svc.ReturnForCorrection(c.Request.Context(), uint(id), user, strings.TrimSpace(c.PostForm("reason")))
+	if err != nil {
+		httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), requisitionErrMsg(err))
+		return
+	}
+	httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), "Réquisition retournée pour correction")
 }
 
 func parseItems(c *gin.Context) []services.RequisitionItemInput {
@@ -147,14 +244,21 @@ func (h *RequisitionsHandler) Detail(c *gin.Context) {
 	}
 	user := middlewares.CurrentUser(c)
 	if !h.svc.CanView(user, req) {
-		c.Redirect(http.StatusFound, "/requisitions?alert="+url.QueryEscape("Accès non autorisé"))
+		httputil.RedirectFlash(c, "/requisitions", "Accès non autorisé")
 		return
 	}
 	accounts, _ := h.accountSvc.List(c.Request.Context())
 	canValidate := canUserValidate(user, req)
 	canCancel := h.svc.CanCancel(user, req)
 	canDisburse := canUserDisburse(user, req)
-	httputil.Render(c, http.StatusOK, pages.RequisitionDetail(layoutFromCtx(c, req.Title, "requisitions"), req, user, accounts, canValidate, canCancel, canDisburse))
+	canEdit := h.svc.CanEdit(user, req)
+	var projected float64
+	balanceInsufficient := false
+	if req.AccountID != nil {
+		_, projected, _ = h.accountSvc.ProjectedBalance(c.Request.Context(), *req.AccountID)
+		balanceInsufficient = projected < req.TotalAmount
+	}
+	httputil.Render(c, http.StatusOK, pages.RequisitionDetail(layoutFromCtx(c, req.Title, "requisitions"), req, user, accounts, canValidate, canCancel, canDisburse, canEdit, projected, balanceInsufficient))
 }
 
 func canUserValidate(user *models.User, req *models.Requisition) bool {
@@ -183,28 +287,37 @@ func canUserDisburse(user *models.User, req *models.Requisition) bool {
 	return user.HasRole(models.RoleAccountant) && user.CanDisburse
 }
 
+func requisitionErrMsg(err error) string {
+	if errors.Is(err, services.ErrInsufficientBalance) {
+		return "Solde insuffisant pour effectuer cette opération"
+	}
+	return "Opération impossible"
+}
+
 func (h *RequisitionsHandler) Validate(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	user := middlewares.CurrentUser(c)
-	var extras *services.AccountantExtras
+	sigPath, _ := parseSignature(c)
+	extras := &services.AccountantExtras{SignaturePath: sigPath}
 	if user.HasRole(models.RoleAccountant) {
 		inv, _ := upload.SaveFormFile(c, "invoice", "invoice")
 		dn, _ := upload.SaveFormFile(c, "delivery_note", "delivery")
 		po, _ := upload.SaveFormFile(c, "purchase_order", "po")
 		rn, _ := upload.SaveFormFile(c, "reception_note", "reception")
-		extras = &services.AccountantExtras{
-			InvoicePath: inv, DeliveryNotePath: dn, PurchaseOrderPath: po, ReceptionNotePath: rn,
-			SupplierName:    strings.TrimSpace(c.PostForm("supplier_name")),
-			SupplierPhone:   strings.TrimSpace(c.PostForm("supplier_phone")),
-			SupplierAddress: strings.TrimSpace(c.PostForm("supplier_address")),
-		}
+		extras.InvoicePath = inv
+		extras.DeliveryNotePath = dn
+		extras.PurchaseOrderPath = po
+		extras.ReceptionNotePath = rn
+		extras.SupplierName = strings.TrimSpace(c.PostForm("supplier_name"))
+		extras.SupplierPhone = strings.TrimSpace(c.PostForm("supplier_phone"))
+		extras.SupplierAddress = strings.TrimSpace(c.PostForm("supplier_address"))
 	}
 	err := h.svc.Validate(c.Request.Context(), uint(id), user, strings.TrimSpace(c.PostForm("comment")), extras)
 	if err != nil {
-		c.Redirect(http.StatusFound, "/requisitions/"+c.Param("id")+"?alert="+url.QueryEscape(err.Error()))
+		httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), requisitionErrMsg(err))
 		return
 	}
-	c.Redirect(http.StatusFound, "/requisitions/"+c.Param("id")+"?alert="+url.QueryEscape("Réquisition validée"))
+	httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), "Réquisition validée")
 }
 
 func (h *RequisitionsHandler) Cancel(c *gin.Context) {
@@ -212,17 +325,20 @@ func (h *RequisitionsHandler) Cancel(c *gin.Context) {
 	user := middlewares.CurrentUser(c)
 	err := h.svc.Cancel(c.Request.Context(), uint(id), user, strings.TrimSpace(c.PostForm("reason")))
 	if err != nil {
-		c.Redirect(http.StatusFound, "/requisitions/"+c.Param("id")+"?alert="+err.Error())
+		httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), requisitionErrMsg(err))
 		return
 	}
-	c.Redirect(http.StatusFound, "/requisitions?alert=Annulee")
+	httputil.RedirectFlash(c, "/requisitions", "Réquisition annulée")
 }
 
 func (h *RequisitionsHandler) Delete(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	user := middlewares.CurrentUser(c)
-	_ = h.svc.Delete(c.Request.Context(), uint(id), user)
-	c.Redirect(http.StatusFound, "/requisitions?alert=Supprimee")
+	if err := h.svc.Delete(c.Request.Context(), uint(id), user); err != nil {
+		httputil.RedirectFlash(c, "/requisitions", requisitionErrMsg(err))
+		return
+	}
+	httputil.RedirectFlash(c, "/requisitions", "Réquisition supprimée")
 }
 
 func (h *RequisitionsHandler) Disburse(c *gin.Context) {
@@ -230,13 +346,33 @@ func (h *RequisitionsHandler) Disburse(c *gin.Context) {
 	user := middlewares.CurrentUser(c)
 	accountID, _ := strconv.ParseUint(c.PostForm("account_id"), 10, 64)
 	mode := models.PaymentMode(c.PostForm("payment_mode"))
-	receipt, _ := upload.SaveFormFile(c, "receipt", "receipt")
-	err := h.svc.Disburse(c.Request.Context(), uint(id), user, uint(accountID), mode, receipt, strings.TrimSpace(c.PostForm("note")), h.accountSvc)
-	if err != nil {
-		c.Redirect(http.StatusFound, "/requisitions/"+c.Param("id")+"?alert="+err.Error())
+	if !mode.Valid() {
+		httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), "Mode de paiement invalide")
 		return
 	}
-	c.Redirect(http.StatusFound, "/requisitions/"+c.Param("id")+"?alert=Decaissee")
+	receipt, _ := upload.SaveFormFile(c, "receipt", "receipt")
+	req, _ := h.svc.GetByID(c.Request.Context(), uint(id))
+	err := h.svc.Disburse(c.Request.Context(), uint(id), user, uint(accountID), mode, receipt, strings.TrimSpace(c.PostForm("note")), h.accountSvc)
+	if err != nil {
+		httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), requisitionErrMsg(err))
+		return
+	}
+	msg := "Réquisition décaissée"
+	if req != nil {
+		if warning, _ := h.accountSvc.CheckDisbursementBalance(c.Request.Context(), uint(accountID), req.TotalAmount); warning != "" {
+			msg = msg + " — " + warning
+		}
+	}
+	httputil.RedirectFlash(c, "/requisitions/"+c.Param("id"), msg)
+}
+
+func parseSignature(c *gin.Context) (string, error) {
+	if path, err := upload.SaveFormFile(c, "signature_file", "signature"); err != nil {
+		return "", err
+	} else if path != "" {
+		return path, nil
+	}
+	return upload.SaveBase64Image(c.PostForm("signature"), "signature")
 }
 
 type ReportsHandler struct {

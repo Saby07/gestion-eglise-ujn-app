@@ -1,0 +1,101 @@
+package pages
+
+import (
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/viewmodels"
+	"fmt"
+)
+
+templ Budgets(vm viewmodels.LayoutVM, year int, list []viewmodels.BudgetVM) {
+	@AppLayout(vm, budgetsBody(vm, year, list))
+}
+
+templ budgetsBody(vm viewmodels.LayoutVM, year int, list []viewmodels.BudgetVM) {
+	@components.PageHeader("Budgets annuels", "Budgets")
+	<div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+		<form method="get" action="/budgets" class="d-flex gap-2 align-items-center">
+			<label class="form-label mb-0">Année</label>
+			<input type="number" name="year" class="form-control form-control-sm" style="width:100px" value={ fmt.Sprintf("%d", year) } min="2020" max="2100"/>
+			<button class="btn btn-sm btn-primary">Filtrer</button>
+		</form>
+		if vm.CanManageCategories() {
+			<a href={ fmt.Sprintf("/budgets/new?year=%d", year) } class="btn btn-sm btn-success ms-auto">
+				<i class="ri-add-line me-1"></i> Nouveau budget
+			</a>
+		}
+	</div>
+	<div class="row g-3">
+		for _, b := range list {
+			<div class="col-xl-6">
+				<div class="card h-100">
+					<div class="card-body">
+						<div class="d-flex justify-content-between align-items-start mb-2">
+							<div>
+								<h5 class="card-title mb-1">{ b.CategoryName }</h5>
+								<p class="text-muted mb-0 fs-13">Année { fmt.Sprintf("%d", b.Year) }</p>
+							</div>
+							<span class="badge bg-soft-info text-info">{ fmt.Sprintf("%.0f%%", b.UsagePercent) }</span>
+						</div>
+						<div class="d-flex justify-content-between mb-2 fs-13">
+							<span>Dépensé: <strong>{ fmt.Sprintf("%.2f USD", b.Spent) }</strong></span>
+							<span>Budget: <strong>{ fmt.Sprintf("%.2f USD", b.Amount) }</strong></span>
+						</div>
+						<div class="progress progress-sm">
+							<div
+								class={ "progress-bar", viewmodels.BudgetUsageClass(b.UsagePercent) }
+								role="progressbar"
+								style={ fmt.Sprintf("width: %.0f%%", budgetBarWidth(b.UsagePercent)) }
+								aria-valuenow={ fmt.Sprintf("%.0f", b.UsagePercent) }
+								aria-valuemin="0"
+								aria-valuemax="100"
+							></div>
+						</div>
+					</div>
+				</div>
+			</div>
+		}
+	</div>
+	if len(list) == 0 {
+		<div class="alert alert-info mt-3 mb-0">Aucun budget défini pour cette année.</div>
+	}
+}
+
+func budgetBarWidth(pct float64) float64 {
+	if pct > 100 {
+		return 100
+	}
+	if pct < 0 {
+		return 0
+	}
+	return pct
+}
+
+templ BudgetNew(vm viewmodels.LayoutVM, year int, categories []viewmodels.CategoryVM) {
+	@AppLayout(vm, budgetNewBody(vm, year, categories))
+}
+
+templ budgetNewBody(vm viewmodels.LayoutVM, year int, categories []viewmodels.CategoryVM) {
+	@components.PageHeader("Nouveau budget", "Budgets")
+	<div class="card">
+		<div class="card-body">
+			<form method="post" action="/budgets">
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<input type="hidden" name="year" value={ fmt.Sprintf("%d", year) }/>
+				<div class="mb-3">
+					<label class="form-label">Catégorie *</label>
+					<select name="category_id" class="form-select" required>
+						for _, c := range categories {
+							<option value={ fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
+						}
+					</select>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">Montant annuel (USD) *</label>
+					<input type="number" step="0.01" name="amount" class="form-control" required/>
+				</div>
+				<button class="btn btn-success">Créer le budget</button>
+				<a href={ fmt.Sprintf("/budgets?year=%d", year) } class="btn btn-link">Annuler</a>
+			</form>
+		</div>
+	</div>
+}

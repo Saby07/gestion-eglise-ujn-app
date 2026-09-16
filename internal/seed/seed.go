@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"eglise_ujn/internal/models"
 	"eglise_ujn/internal/services"
@@ -15,6 +16,7 @@ import (
 type Config struct {
 	AdminEmail    string
 	AdminPassword string
+	GinMode       string
 }
 
 func Run(db *gorm.DB, cfg Config) error {
@@ -26,56 +28,94 @@ func Run(db *gorm.DB, cfg Config) error {
 		return err
 	}
 
+	if err := validateSeedConfig(cfg); err != nil {
+		return err
+	}
+
 	if cfg.AdminEmail == "" {
 		cfg.AdminEmail = "superadmin@eglise-ujn.local"
-	}
-	if cfg.AdminPassword == "" {
-		cfg.AdminPassword = "ChangeMe123!"
 	}
 
 	var count int64
 	if err := db.Model(&models.User{}).Count(&count).Error; err != nil {
 		return err
 	}
-	if count > 0 {
-		return ensureUserRole(db, cfg.AdminEmail, models.RoleSuperAdmin)
-	}
-
-	userSvc := services.NewUserService(db)
-	users := []struct {
-		email, first, last, pass string
-		roles                    []models.RoleKey
-	}{
-		{cfg.AdminEmail, "Super", "Admin", cfg.AdminPassword, []models.RoleKey{models.RoleSuperAdmin}},
-		{"admin@eglise-ujn.local", "Jean", "Admin", "ChangeMe123!", []models.RoleKey{models.RoleAdmin}},
-		{"comptable@eglise-ujn.local", "Marie", "Comptable", "ChangeMe123!", []models.RoleKey{models.RoleAccountant}},
-		{"caissier@eglise-ujn.local", "Paul", "Caissier", "ChangeMe123!", []models.RoleKey{models.RoleCashier}},
-		{"staff@eglise-ujn.local", "Alice", "Staff", "ChangeMe123!", []models.RoleKey{models.RoleStaff}},
-	}
-	for _, u := range users {
-		created, err := userSvc.Create(context.Background(), services.CreateUserInput{
-			FirstName: u.first,
-			LastName:  u.last,
-			Email:     u.email,
-			Password:  u.pass,
-			Roles:     u.roles,
-		}, "seed")
-		if err != nil {
+	if count == 0 {
+		if err := seedSuperAdmin(db, cfg); err != nil {
 			return err
 		}
-		if len(created.Roles) != len(u.roles) {
-			return fmt.Errorf("utilisateur %s: rôles attendus %d, obtenus %d", u.email, len(u.roles), len(created.Roles))
-		}
+	} else if err := ensureUserRole(db, cfg.AdminEmail, models.RoleSuperAdmin); err != nil {
+		return err
 	}
 
-	accSvc := services.NewAccountService(db)
-	acc, err := accSvc.Create(context.Background(), "Compte principal", "Compte de fonctionnement", "USD", "seed")
+	return seedDefaults(context.Background(), db)
+}
+
+func seedSuperAdmin(db *gorm.DB, cfg Config) error {
+	userSvc := services.NewUserService(db)
+	created, err := userSvc.Create(context.Background(), services.CreateUserInput{
+		FirstName: "Super",
+		LastName:  "Admin",
+		Email:     cfg.AdminEmail,
+		Password:  cfg.AdminPassword,
+		Roles:     []models.RoleKey{models.RoleSuperAdmin},
+	}, "seed")
 	if err != nil {
 		return err
 	}
-	var super models.User
-	if err := db.Preload("Roles.Role").Where("email = ?", cfg.AdminEmail).First(&super).Error; err == nil {
-		_ = accSvc.Fund(context.Background(), acc.ID, 0, "Approvisionnement initial", super.ID, "seed")
+	if len(created.Roles) != 1 {
+		return fmt.Errorf("utilisateur %s: rôles attendus 1, obtenus %d", cfg.AdminEmail, len(created.Roles))
+	}
+	log.Printf("[seed] super admin créé: %s", cfg.AdminEmail)
+	return nil
+}
+
+func seedDefaults(ctx context.Context, db *gorm.DB) error {
+	settingsSvc := services.NewSettingsService(db)
+	defaults := map[string]string{
+		services.SettingChurchName:   "Église UJN",
+		services.SettingTheme:        "light",
+		services.SettingReminderDays: "3",
+	}
+	for k, v := range defaults {
+		cur, err := settingsSvc.Get(ctx, k)
+		if err != nil {
+			return err
+		}
+		if cur == "" {
+			if err := settingsSvc.Set(ctx, k, v); err != nil {
+				return err
+			}
+		}
+	}
+
+	catSvc := services.NewCategoryService(db)
+	for _, name := range []string{"Culte", "Entretien", "Évangélisation", "Social", "Administration"} {
+		var count int64
+		if err := db.Model(&models.ExpenseCategory{}).Where("name = ?", name).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			if _, err := catSvc.Create(ctx, name, name, "seed"); err != nil {
+				return err
+			}
+		}
+	}
+	log.Printf("[seed] paramètres et catégories par défaut prêts")
+	return nil
+}
+
+func validateSeedConfig(cfg Config) error {
+	if strings.TrimSpace(cfg.AdminPassword) == "" {
+		return errors.New("ADMIN_PASSWORD est requis dans .env pour le seed")
+	}
+	if strings.EqualFold(cfg.GinMode, "release") {
+		if cfg.AdminPassword == "ChangeMe123!" {
+			return errors.New("ADMIN_PASSWORD doit être changé avant le seed en production")
+		}
+		if err := services.ValidatePassword(cfg.AdminPassword); err != nil {
+			return fmt.Errorf("ADMIN_PASSWORD invalide: %w", err)
+		}
 	}
 	return nil
 }

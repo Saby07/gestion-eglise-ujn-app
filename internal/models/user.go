@@ -30,6 +30,15 @@ func (r RoleKey) Label() string {
 	}
 }
 
+func (r RoleKey) Valid() bool {
+	for _, rk := range AllRoles {
+		if r == rk {
+			return true
+		}
+	}
+	return false
+}
+
 type Role struct {
 	BaseModel
 	Key         RoleKey `gorm:"type:varchar(32);uniqueIndex;not null"`

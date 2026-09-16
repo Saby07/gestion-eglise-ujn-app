@@ -30,6 +30,15 @@ func (p PaymentMode) Label() string {
 	}
 }
 
+func (p PaymentMode) Valid() bool {
+	for _, m := range AllPaymentModes() {
+		if p == m {
+			return true
+		}
+	}
+	return false
+}
+
 type Disbursement struct {
 	BaseModel
 	RequisitionID uint          `gorm:"not null;uniqueIndex"`

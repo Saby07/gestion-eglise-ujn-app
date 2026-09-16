@@ -13,11 +13,19 @@ templ Reports(vm viewmodels.LayoutVM, period, label string, rows []services.Disb
 
 templ reportsBody(vm viewmodels.LayoutVM, period, label string, rows []services.DisbursementReportRow, total float64) {
 	@components.PageHeader("Rapports de décaissement", "Rapports")
-	<div class="mb-3 d-flex gap-2">
+	<div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
 		<a href="/reports?period=daily" class={ "btn btn-sm", reportBtn(period == "daily") }>Journalier</a>
 		<a href="/reports?period=weekly" class={ "btn btn-sm", reportBtn(period == "weekly") }>Hebdomadaire</a>
 		<a href="/reports?period=monthly" class={ "btn btn-sm", reportBtn(period == "monthly") }>Mensuel</a>
 		<a href="/reports?period=yearly" class={ "btn btn-sm", reportBtn(period == "yearly") }>Annuel</a>
+		<div class="ms-auto d-flex gap-2">
+			<a href={ fmt.Sprintf("/reports/export.csv?period=%s", period) } class="btn btn-sm btn-soft-success">
+				<i class="ri-file-excel-2-line me-1"></i> Export CSV
+			</a>
+			<button type="button" class="btn btn-sm btn-soft-primary" onclick="window.print()">
+				<i class="ri-printer-line me-1"></i> Imprimer / PDF
+			</button>
+		</div>
 	</div>
 	<div class="card mb-3">
 		<div class="card-body">

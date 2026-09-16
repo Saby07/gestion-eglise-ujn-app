@@ -7,12 +7,45 @@ import (
 	"fmt"
 )
 
-templ RequisitionsList(vm viewmodels.LayoutVM, list []models.Requisition, filter string) {
-	@AppLayoutDataTables(vm, requisitionsListBody(vm, list, filter))
+templ RequisitionsList(vm viewmodels.LayoutVM, list []models.Requisition, filter string, search viewmodels.RequisitionSearchVM, categories []viewmodels.CategoryVM) {
+	@AppLayoutDataTables(vm, requisitionsListBody(vm, list, filter, search, categories))
 }
 
-templ requisitionsListBody(vm viewmodels.LayoutVM, list []models.Requisition, filter string) {
+templ requisitionsListBody(vm viewmodels.LayoutVM, list []models.Requisition, filter string, search viewmodels.RequisitionSearchVM, categories []viewmodels.CategoryVM) {
 	@components.PageHeader("Réquisitions", "Réquisitions")
+	<div class="card mb-3">
+		<div class="card-body">
+			<form method="get" action="/requisitions" class="row g-2 align-items-end">
+				<input type="hidden" name="filter" value={ filter }/>
+				<div class="col-md-3">
+					<label class="form-label">Recherche</label>
+					<input name="q" class="form-control form-control-sm" placeholder="Titre, auteur…" value={ search.Q }/>
+				</div>
+				<div class="col-md-2">
+					<label class="form-label">Du</label>
+					<input type="date" name="from" class="form-control form-control-sm" value={ search.From }/>
+				</div>
+				<div class="col-md-2">
+					<label class="form-label">Au</label>
+					<input type="date" name="to" class="form-control form-control-sm" value={ search.To }/>
+				</div>
+				if len(categories) > 0 {
+					<div class="col-md-3">
+						<label class="form-label">Catégorie</label>
+						<select name="category_id" class="form-select form-select-sm">
+							<option value="">Toutes</option>
+							for _, c := range categories {
+								<option value={ fmt.Sprintf("%d", c.ID) } selected?={ search.CategoryID == fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
+							}
+						</select>
+					</div>
+				}
+				<div class="col-md-2">
+					<button class="btn btn-sm btn-primary w-100"><i class="ri-search-line me-1"></i> Filtrer</button>
+				</div>
+			</form>
+		</div>
+	</div>
 	<div class="mb-3 d-flex flex-wrap gap-2">
 		if vm.IsStaffOnly() {
 			<a href="/requisitions" class={ "btn", btnClass(filter == "all") }>Toutes</a>
@@ -41,6 +74,9 @@ templ requisitionsListBody(vm viewmodels.LayoutVM, list []models.Requisition, fi
 						<th>#</th>
 						<th>Titre</th>
 						<th>Auteur</th>
+						if showCategoryColumn(list) {
+							<th>Catégorie</th>
+						}
 						<th class="text-end">Date</th>
 						<th class="text-end">Montant</th>
 						<th class="text-end">Étape</th>
@@ -53,6 +89,9 @@ templ requisitionsListBody(vm viewmodels.LayoutVM, list []models.Requisition, fi
 							<td>{ fmt.Sprintf("%d", r.ID) }</td>
 							<td>{ r.Title }</td>
 							<td class="text-start">{ r.User.FullName() }</td>
+							if showCategoryColumn(list) {
+								<td class="text-muted">{ requisitionListCategory(r) }</td>
+							}
 							<td class="text-end" data-order={ r.RequisitionDate.Format("2006-01-02") }>{ r.RequisitionDate.Format("02/01/2006") }</td>
 							<td class="text-end" data-order={ fmt.Sprintf("%.2f", r.TotalAmount) }>{ fmt.Sprintf("%.2f", r.TotalAmount) } $</td>
 							<td class="text-end"><span class={ "badge", viewmodels.StatusClass(r.Status, r.CurrentStep) }>{ viewmodels.StepLabel(r.CurrentStep) }</span></td>
@@ -72,11 +111,28 @@ func btnClass(active bool) string {
 	return "btn-soft-secondary"
 }
 
-templ RequisitionForm(vm viewmodels.LayoutVM) {
-	@AppLayout(vm, requisitionFormBody(vm))
+func showCategoryColumn(list []models.Requisition) bool {
+	for _, r := range list {
+		if requisitionListCategory(r) != "—" {
+			return true
+		}
+	}
+	return false
 }
 
-templ requisitionFormBody(vm viewmodels.LayoutVM) {
+func requisitionListCategory(r models.Requisition) string {
+	name := viewmodels.MapRequisitions([]models.Requisition{r})[0].CategoryName
+	if name == "" {
+		return "—"
+	}
+	return name
+}
+
+templ RequisitionForm(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM) {
+	@AppLayout(vm, requisitionFormBody(vm, accounts, categories, suppliers))
+}
+
+templ requisitionFormBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM) {
 	@components.PageHeader("Nouvelle réquisition", "Réquisitions")
 	<div class="card">
 		<div class="card-body">
@@ -92,6 +148,43 @@ templ requisitionFormBody(vm viewmodels.LayoutVM) {
 						<input type="date" name="date" class="form-control" required/>
 					</div>
 				</div>
+				if len(accounts) > 0 || len(categories) > 0 || len(suppliers) > 0 {
+					<div class="row g-3 mb-3">
+						if len(accounts) > 0 {
+							<div class="col-md-4">
+								<label class="form-label">Compte (optionnel)</label>
+								<select name="account_id" class="form-select">
+									<option value="">— Aucun —</option>
+									for _, a := range accounts {
+										<option value={ fmt.Sprintf("%d", a.ID) }>{ a.Name }</option>
+									}
+								</select>
+							</div>
+						}
+						if len(categories) > 0 {
+							<div class="col-md-4">
+								<label class="form-label">Catégorie (optionnel)</label>
+								<select name="category_id" class="form-select">
+									<option value="">— Aucune —</option>
+									for _, c := range categories {
+										<option value={ fmt.Sprintf("%d", c.ID) }>{ c.Name }</option>
+									}
+								</select>
+							</div>
+						}
+						if len(suppliers) > 0 {
+							<div class="col-md-4">
+								<label class="form-label">Fournisseur (optionnel)</label>
+								<select name="supplier_id" class="form-select">
+									<option value="">— Aucun —</option>
+									for _, s := range suppliers {
+										<option value={ fmt.Sprintf("%d", s.ID) }>{ s.Name }</option>
+									}
+								</select>
+							</div>
+						}
+					</div>
+				}
 				<h5 class="mb-3">Articles <span class="text-danger">*</span></h5>
 				<div id="items-container">
 					<div class="row g-2 mb-2 item-row">

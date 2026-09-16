@@ -7,7 +7,7 @@ import (
 )
 
 templ AppLayout(vm viewmodels.LayoutVM, content templ.Component) {
-	@layouts.Base(vm.Title, layouts.Head(), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), layouts.Scripts(), appContent(vm, content))
+	@layouts.Base(vm.Title, vm.DarkMode, layouts.Head(churchDisplayName(vm)), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), layouts.Scripts(), appContent(vm, content))
 }
 
 templ appContent(vm viewmodels.LayoutVM, content templ.Component) {
@@ -18,17 +18,24 @@ templ appContent(vm viewmodels.LayoutVM, content templ.Component) {
 }
 
 templ AppLayoutCharts(vm viewmodels.LayoutVM, content templ.Component) {
-	@layouts.Base(vm.Title, layouts.Head(), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), chartScripts(), appContent(vm, content))
+	@layouts.Base(vm.Title, vm.DarkMode, layouts.Head(churchDisplayName(vm)), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), chartScripts(), appContent(vm, content))
 }
 
 templ AppLayoutDataTables(vm viewmodels.LayoutVM, content templ.Component) {
-	@layouts.Base(vm.Title, dataTablesHead(), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), dataTablesScripts(), appContent(vm, content))
+	@layouts.Base(vm.Title, vm.DarkMode, dataTablesHead(vm), layouts.TopHeader(vm), layouts.Menu(vm), layouts.Footer(), dataTablesScripts(), appContent(vm, content))
 }
 
-templ dataTablesHead() {
-	@layouts.Head()
+templ dataTablesHead(vm viewmodels.LayoutVM) {
+	@layouts.Head(churchDisplayName(vm))
 	<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css"/>
 	<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap.min.css"/>
+}
+
+func churchDisplayName(vm viewmodels.LayoutVM) string {
+	if vm.ChurchName != "" {
+		return vm.ChurchName
+	}
+	return "Eglise UJN"
 }
 
 templ dataTablesScripts() {

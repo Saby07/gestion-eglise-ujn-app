@@ -1,0 +1,88 @@
+package pages
+
+import (
+	"eglise_ujn/templates/components"
+	"eglise_ujn/templates/viewmodels"
+)
+
+templ Stats(vm viewmodels.LayoutVM, s viewmodels.StatsVM) {
+	@AppLayoutCharts(vm, statsBody(s))
+}
+
+templ statsBody(s viewmodels.StatsVM) {
+	@components.PageHeader("Statistiques avancées", "Statistiques")
+	<div class="row g-4">
+		<div class="col-xl-4">
+			<div class="card h-100">
+				<div class="card-header"><h5 class="card-title mb-0">Répartition par catégorie</h5></div>
+				<div class="card-body">
+					<div
+						id="stats-category-chart"
+						data-labels={ viewmodels.StatsJSONArray(s.CategoryLabels) }
+						data-values={ viewmodels.StatsJSONFloats(s.CategoryValues) }
+					></div>
+				</div>
+			</div>
+		</div>
+		<div class="col-xl-8">
+			<div class="card h-100">
+				<div class="card-header"><h5 class="card-title mb-0">Décaissements mensuels</h5></div>
+				<div class="card-body">
+					<div
+						id="stats-monthly-chart"
+						data-labels={ viewmodels.StatsJSONArray(s.MonthlyLabels) }
+						data-values={ viewmodels.StatsJSONFloats(s.MonthlyValues) }
+					></div>
+				</div>
+			</div>
+		</div>
+		<div class="col-12">
+			<div class="card">
+				<div class="card-header"><h5 class="card-title mb-0">Délai moyen de validation (jours)</h5></div>
+				<div class="card-body">
+					<div
+						id="stats-delay-chart"
+						data-labels={ viewmodels.StatsJSONArray(s.ValidationDelayLabels) }
+						data-values={ viewmodels.StatsJSONFloats(s.ValidationDelayValues) }
+					></div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script>
+		document.addEventListener('DOMContentLoaded', function () {
+			if (typeof ApexCharts === 'undefined') return;
+			function chartData(id) {
+				var el = document.getElementById(id);
+				if (!el) return { labels: [], values: [] };
+				return {
+					labels: JSON.parse(el.dataset.labels || '[]'),
+					values: JSON.parse(el.dataset.values || '[]')
+				};
+			}
+			var cat = chartData('stats-category-chart');
+			new ApexCharts(document.querySelector('#stats-category-chart'), {
+				chart: { type: 'pie', height: 320 },
+				series: cat.values,
+				labels: cat.labels,
+				legend: { position: 'bottom' }
+			}).render();
+			var monthly = chartData('stats-monthly-chart');
+			new ApexCharts(document.querySelector('#stats-monthly-chart'), {
+				chart: { type: 'bar', height: 320, toolbar: { show: false } },
+				series: [{ name: 'Montant (USD)', data: monthly.values }],
+				xaxis: { categories: monthly.labels },
+				colors: ['#405189'],
+				dataLabels: { enabled: false }
+			}).render();
+			var delay = chartData('stats-delay-chart');
+			new ApexCharts(document.querySelector('#stats-delay-chart'), {
+				chart: { type: 'bar', height: 280, toolbar: { show: false } },
+				series: [{ name: 'Jours', data: delay.values }],
+				xaxis: { categories: delay.labels },
+				colors: ['#0ab39c'],
+				dataLabels: { enabled: true }
+			}).render();
+		});
+	</script>
+}

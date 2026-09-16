@@ -1,8 +1,8 @@
 package layouts
 
-templ Base(title string, head templ.Component, top_header templ.Component, menu templ.Component, footer templ.Component, scripts templ.Component, content templ.Component) {
+templ Base(title string, darkMode bool, head templ.Component, top_header templ.Component, menu templ.Component, footer templ.Component, scripts templ.Component, content templ.Component) {
     <!doctype html>
-    <html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="dark" data-sidebar-size="lg" data-sidebar-image="none" data-preloader="disable">
+    <html lang="fr" data-layout="vertical" data-topbar="light" data-sidebar="dark" data-sidebar-size="lg" data-sidebar-image="none" data-preloader="disable" data-bs-theme={ themeAttr(darkMode) }>
         <head>
             @head
             <title>{ title }</title>
@@ -33,6 +33,33 @@ templ Base(title string, head templ.Component, top_header templ.Component, menu 
                 <i class="ri-arrow-up-line"></i>
             </button>
             @scripts
+            @themeToggleScript()
         </body>
     </html>
+}
+
+func themeAttr(darkMode bool) string {
+	if darkMode {
+		return "dark"
+	}
+	return "light"
+}
+
+templ themeToggleScript() {
+	<script>
+		(function () {
+			var html = document.documentElement;
+			var stored = localStorage.getItem('ujn-theme');
+			if (stored === 'dark' || stored === 'light') {
+				html.setAttribute('data-bs-theme', stored);
+			}
+			document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+				btn.addEventListener('click', function () {
+					var next = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+					html.setAttribute('data-bs-theme', next);
+					localStorage.setItem('ujn-theme', next);
+				});
+			});
+		})();
+	</script>
 }

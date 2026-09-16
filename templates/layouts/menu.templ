@@ -48,6 +48,11 @@ templ Menu(vm viewmodels.LayoutVM) {
 					</li>
 				}
 				<li class="nav-item">
+					<a class={ "nav-link menu-link", templ.KV("active", vm.ActiveMenu == "notifications") } href="/notifications">
+						<i class="ri-notification-3-line"></i> <span>Notifications</span>
+					</a>
+				</li>
+				<li class="nav-item">
 					<a class={ "nav-link menu-link", templ.KV("active", vm.ActiveMenu == "requisitions") } href="/requisitions">
 						<i class="ri-file-list-3-line"></i> <span>Réquisitions</span>
 					</a>
@@ -59,10 +64,50 @@ templ Menu(vm viewmodels.LayoutVM) {
 						</a>
 					</li>
 				}
+				if vm.CanManageCategories() {
+					<li class="nav-item">
+						<a class={ "nav-link menu-link", templ.KV("active", vm.ActiveMenu == "categories") } href="/categories">
+							<i class="ri-price-tag-3-line"></i> <span>Catégories</span>
+						</a>
+					</li>
+				}
+				if vm.CanManageAccounts() {
+					<li class="nav-item">
+						<a class={ "nav-link menu-link", templ.KV("active", vm.ActiveMenu == "budgets") } href="/budgets">
+							<i class="ri-pie-chart-2-line"></i> <span>Budgets</span>
+						</a>
+					</li>
+				}
+				if vm.CanManageSuppliers() {
+					<li class="nav-item">
+						<a class={ "nav-link menu-link", templ.KV("active", vm.ActiveMenu == "suppliers") } href="/suppliers">
+							<i class="ri-store-2-line"></i> <span>Fournisseurs</span>
+						</a>
+					</li>
+				}
 				if vm.CanViewReports() {
 					<li class="nav-item">
 						<a class={ "nav-link menu-link", templ.KV("active", vm.ActiveMenu == "reports") } href="/reports">
 							<i class="ri-bar-chart-line"></i> <span>Rapports</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a class={ "nav-link menu-link", templ.KV("active", vm.ActiveMenu == "stats") } href="/stats">
+							<i class="ri-line-chart-line"></i> <span>Statistiques</span>
+						</a>
+					</li>
+				}
+				if vm.CanViewAudit() {
+					<li class="nav-item">
+						<a class={ "nav-link menu-link", templ.KV("active", vm.ActiveMenu == "audit") } href="/audit">
+							<i class="ri-history-line"></i> <span>Journal d'audit</span>
+						</a>
+					</li>
+				}
+				if vm.CanManageSettings() {
+					<li class="nav-item">
+						<a class={ "nav-link menu-link", templ.KV("active", vm.ActiveMenu == "settings") } href="/settings">
+							<i class="ri-settings-3-line"></i> <span>Paramètres</span>
 						</a>
 					</li>
 				}

@@ -7,8 +7,8 @@ import (
 	"fmt"
 )
 
-templ RequisitionDetail(vm viewmodels.LayoutVM, req *models.Requisition, user *models.User, accounts []models.ChurchAccount, canValidate, canCancel, canDisburse bool) {
-	@AppLayout(vm, requisitionDetailBody(vm, req, accounts, canValidate, canCancel, canDisburse))
+templ RequisitionDetail(vm viewmodels.LayoutVM, req *models.Requisition, user *models.User, accounts []models.ChurchAccount, canValidate, canCancel, canDisburse, canEdit bool, projectedBalance float64, balanceInsufficient bool) {
+	@AppLayout(vm, requisitionDetailBody(vm, req, accounts, canValidate, canCancel, canDisburse, canEdit, projectedBalance, balanceInsufficient))
 }
 
 templ reqMetaItem(icon, label, value string) {
@@ -29,8 +29,40 @@ templ reqDocLink(href, icon, label string) {
 	</a>
 }
 
-templ requisitionDetailBody(vm viewmodels.LayoutVM, req *models.Requisition, accounts []models.ChurchAccount, canValidate, canCancel, canDisburse bool) {
-	@components.PageHeader(req.Title, "Réquisitions")
+templ signatureCanvas(formID string) {
+	<div class="mb-3">
+		<label class="form-label">Signature</label>
+		<canvas class="border rounded w-100 signature-canvas" data-form={ formID } height="120" style="touch-action:none;cursor:crosshair;background:#fff;"></canvas>
+		<input type="hidden" name="signature" class="signature-input"/>
+		<button type="button" class="btn btn-sm btn-soft-secondary mt-2 signature-clear">Effacer</button>
+	</div>
+}
+
+templ requisitionDetailBody(vm viewmodels.LayoutVM, req *models.Requisition, accounts []models.ChurchAccount, canValidate, canCancel, canDisburse, canEdit bool, projectedBalance float64, balanceInsufficient bool) {
+	<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+		<div class="flex-grow-1">
+			@components.PageHeader(req.Title, "Réquisitions")
+		</div>
+		<div class="d-flex gap-2">
+			<a href={ fmt.Sprintf("/requisitions/%d/export", req.ID) } class="btn btn-sm btn-soft-info">
+				<i class="ri-download-line me-1"></i> Exporter
+			</a>
+			if canEdit {
+				<a href={ fmt.Sprintf("/requisitions/%d/edit", req.ID) } class="btn btn-sm btn-soft-primary">
+					<i class="ri-pencil-line me-1"></i> Modifier
+				</a>
+			}
+		</div>
+	</div>
+	if balanceInsufficient {
+		<div class="alert alert-warning d-flex align-items-start gap-2">
+			<i class="ri-error-warning-line fs-18 mt-1"></i>
+			<div>
+				<strong>Solde projeté insuffisant.</strong>
+				<p class="mb-0 fs-13">Le solde projeté ({ fmt.Sprintf("%.2f USD", projectedBalance) }) ne couvre pas le montant de cette réquisition ({ fmt.Sprintf("%.2f USD", req.TotalAmount) }).</p>
+			</div>
+		</div>
+	}
 	@components.WorkflowTracker(viewmodels.BuildWorkflowSteps(req))
 	<div class="card card-bordered border mb-4">
 		<div class="card-body p-4">
@@ -60,6 +92,7 @@ templ requisitionDetailBody(vm viewmodels.LayoutVM, req *models.Requisition, acc
 	</div>
 	<div class="row g-4 mb-5">
 		<div class="col-lg-8">
+			@components.RequisitionTimeline(viewmodels.BuildTimeline(req))
 			<div class="card border-0 shadow-sm mb-0">
 				<div class="card-header bg-transparent border-bottom d-flex align-items-center gap-2 py-3">
 					<i class="ri-list-check-2 text-primary fs-18"></i>
@@ -149,7 +182,7 @@ templ requisitionDetailBody(vm viewmodels.LayoutVM, req *models.Requisition, acc
 						</div>
 						<div class="card-body">
 							if vm.IsAccountant && req.CurrentStep == models.StepPendingAccountant {
-								<form method="post" action={ fmt.Sprintf("/requisitions/%d/validate", req.ID) } enctype="multipart/form-data">
+								<form method="post" action={ fmt.Sprintf("/requisitions/%d/validate", req.ID) } enctype="multipart/form-data" id="validate-form-accountant">
 									<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
 									<p class="text-muted small mb-3">Les pièces jointes et infos fournisseur sont optionnelles.</p>
 									<div class="mb-2"><label class="form-label">Facture</label><input type="file" name="invoice" class="form-control form-control-sm"/></div>
@@ -160,15 +193,32 @@ templ requisitionDetailBody(vm viewmodels.LayoutVM, req *models.Requisition, acc
 									<div class="mb-2"><input name="supplier_phone" class="form-control form-control-sm" placeholder="Téléphone fournisseur"/></div>
 									<div class="mb-2"><input name="supplier_address" class="form-control form-control-sm" placeholder="Adresse fournisseur"/></div>
 									<div class="mb-3"><textarea name="comment" class="form-control form-control-sm" rows="2" placeholder="Commentaire"></textarea></div>
+									@signatureCanvas("validate-form-accountant")
 									<button class="btn btn-success w-100"><i class="ri-check-line me-1"></i> Valider cette étape</button>
 								</form>
 							} else {
-								<form method="post" action={ fmt.Sprintf("/requisitions/%d/validate", req.ID) }>
+								<form method="post" action={ fmt.Sprintf("/requisitions/%d/validate", req.ID) } id="validate-form">
 									<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
 									<div class="mb-3"><textarea name="comment" class="form-control form-control-sm" rows="2" placeholder="Commentaire"></textarea></div>
+									@signatureCanvas("validate-form")
 									<button class="btn btn-success w-100"><i class="ri-check-line me-1"></i> Valider cette étape</button>
 								</form>
 							}
+						</div>
+					</div>
+					<div class="card border-0 shadow-sm mb-4 req-action-card">
+						<div class="card-header bg-transparent border-bottom py-3">
+							<div class="d-flex align-items-center gap-2">
+								<span class="req-action-icon req-action-icon--warning"><i class="ri-arrow-go-back-line"></i></span>
+								<h5 class="card-title mb-0">Retour pour correction</h5>
+							</div>
+						</div>
+						<div class="card-body">
+							<form method="post" action={ fmt.Sprintf("/requisitions/%d/return", req.ID) }>
+								<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+								<div class="mb-3"><textarea name="comment" class="form-control form-control-sm" rows="3" placeholder="Motif du retour" required></textarea></div>
+								<button class="btn btn-warning w-100"><i class="ri-arrow-go-back-line me-1"></i> Renvoyer pour correction</button>
+							</form>
 						</div>
 					</div>
 				}
@@ -261,4 +311,54 @@ templ requisitionDetailBody(vm viewmodels.LayoutVM, req *models.Requisition, acc
 			</div>
 		</div>
 	</div>
+	<script>
+		document.addEventListener('DOMContentLoaded', function () {
+			document.querySelectorAll('.signature-canvas').forEach(function (canvas) {
+				var form = document.getElementById(canvas.dataset.form);
+				if (!form) return;
+				var input = form.querySelector('.signature-input');
+				var clearBtn = form.querySelector('.signature-clear');
+				var ctx = canvas.getContext('2d');
+				var drawing = false;
+				ctx.strokeStyle = '#212529';
+				ctx.lineWidth = 2;
+				ctx.lineCap = 'round';
+				function pos(e) {
+					var rect = canvas.getBoundingClientRect();
+					var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+					var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+					return { x: clientX - rect.left, y: clientY - rect.top };
+				}
+				function start(e) { drawing = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+				function move(e) {
+					if (!drawing) return;
+					var p = pos(e);
+					ctx.lineTo(p.x, p.y);
+					ctx.stroke();
+					e.preventDefault();
+				}
+				function end() {
+					if (!drawing) return;
+					drawing = false;
+					if (input) input.value = canvas.toDataURL('image/png');
+				}
+				canvas.addEventListener('mousedown', start);
+				canvas.addEventListener('mousemove', move);
+				canvas.addEventListener('mouseup', end);
+				canvas.addEventListener('mouseleave', end);
+				canvas.addEventListener('touchstart', start, { passive: false });
+				canvas.addEventListener('touchmove', move, { passive: false });
+				canvas.addEventListener('touchend', end);
+				if (clearBtn) {
+					clearBtn.addEventListener('click', function () {
+						ctx.clearRect(0, 0, canvas.width, canvas.height);
+						if (input) input.value = '';
+					});
+				}
+				form.addEventListener('submit', function () {
+					if (input && !input.value) input.value = canvas.toDataURL('image/png');
+				});
+			});
+		});
+	</script>
 }

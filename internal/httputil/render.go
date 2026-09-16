@@ -15,8 +15,5 @@ func Render(c *gin.Context, status int, comp templ.Component) {
 }
 
 func RedirectWithAlert(c *gin.Context, path, alert string) {
-	if alert != "" {
-		path += "?alert=" + alert
-	}
-	c.Redirect(http.StatusFound, path)
+	RedirectFlash(c, path, alert)
 }

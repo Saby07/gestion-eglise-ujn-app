@@ -1,10 +1,10 @@
 package layouts
 
-templ Head() {
+templ Head(churchName string) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="Eglise UJN Management System" name="description" />
-    <meta content="Eglise UJN" name="author" />
+    <meta content={ churchName + " — Gestion financière" } name="description" />
+    <meta content={ churchName } name="author" />
     <link rel="shortcut icon" href="/assets/images/favicon.ico">
     <script src="/assets/js/layout.js"></script>
     <link href="/assets/css/bootstrap.min.css" rel="stylesheet" type="text/css" />

@@ -80,7 +80,7 @@ templ accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist 
 			</div>
 		</div>
 		<div class="col-md-4">
-			<div class="card bg-info text-white">
+			<div class={ "card text-white", templ.KV("bg-info", projected >= 0), templ.KV("bg-danger", projected < 0) }>
 				<div class="card-body">
 					<p class="mb-1">Solde projeté (après réquisitions en attente)</p>
 					<h3 class="text-white">{ fmt.Sprintf("%.2f %s", projected, acc.Currency) }</h3>
@@ -88,6 +88,15 @@ templ accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist 
 			</div>
 		</div>
 	</div>
+	if projected < 0 {
+		<div class="alert alert-warning d-flex align-items-start gap-2 mb-4">
+			<i class="ri-error-warning-line fs-18 mt-1"></i>
+			<div>
+				<strong>Attention : solde projeté insuffisant.</strong>
+				<p class="mb-0 fs-13">Les réquisitions en attente dépassent le solde disponible de ce compte.</p>
+			</div>
+		</div>
+	}
 	if vm.IsAccountant {
 		<div class="card mb-4">
 			<div class="card-header">Approvisionner le compte</div>
