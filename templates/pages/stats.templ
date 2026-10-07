@@ -6,11 +6,11 @@ import (
 )
 
 templ Stats(vm viewmodels.LayoutVM, s viewmodels.StatsVM) {
-	@AppLayoutCharts(vm, statsBody(s))
+	@AppLayoutCharts(vm, statsBody(vm, s))
 }
 
-templ statsBody(s viewmodels.StatsVM) {
-	@components.PageHeader("Statistiques avancées", "Statistiques")
+templ statsBody(vm viewmodels.LayoutVM, s viewmodels.StatsVM) {
+	@components.PageHeader("Statistiques avancées", "Statistiques", vm.Alert)
 	<div class="row g-4">
 		<div class="col-xl-4">
 			<div class="card h-100">

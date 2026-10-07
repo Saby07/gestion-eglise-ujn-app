@@ -12,7 +12,7 @@ templ RequisitionEditForm(vm viewmodels.LayoutVM, req *models.Requisition, accou
 }
 
 templ requisitionEditBody(vm viewmodels.LayoutVM, req *models.Requisition, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM) {
-	@components.PageHeader("Modifier la réquisition", "Réquisitions")
+	@components.PageHeader("Modifier la réquisition", "Réquisitions", vm.Alert)
 	<div class="card">
 		<div class="card-body">
 			<form method="post" action={ fmt.Sprintf("/requisitions/%d/edit", req.ID) } id="req-edit-form">

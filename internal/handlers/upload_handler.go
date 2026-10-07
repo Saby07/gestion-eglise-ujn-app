@@ -45,5 +45,6 @@ func (h *UploadHandler) Serve(c *gin.Context) {
 
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Content-Disposition", "attachment")
+	c.Header("Content-Type", upload.ContentType(absFile))
 	c.File(absFile)
 }

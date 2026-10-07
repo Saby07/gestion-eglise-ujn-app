@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"net/http"
 
 	"eglise_ujn/internal/handlers"
@@ -18,11 +19,13 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 	auditSvc := services.NewAuditService(db)
 	authSvc := services.NewAuthService(db)
 	accountSvc := services.NewAccountService(db)
-	notifSvc := services.NewNotificationService(db, emailSvc)
-	reqSvc := services.NewRequisitionService(db, notifSvc, auditSvc, emailSvc)
+	workflowSvc := services.NewWorkflowService(db, settingsSvc)
+	_ = workflowSvc.EnsureDefault(context.Background())
+	notifSvc := services.NewNotificationService(db, emailSvc, workflowSvc)
+	reqSvc := services.NewRequisitionService(db, notifSvc, auditSvc, emailSvc, workflowSvc)
 	userSvc := services.NewUserService(db)
 	reportSvc := services.NewReportService(db)
-	dashSvc := services.NewDashboardService(db, accountSvc, reqSvc)
+	dashSvc := services.NewDashboardService(db, accountSvc, reqSvc, workflowSvc)
 	categorySvc := services.NewCategoryService(db)
 	budgetSvc := services.NewBudgetService(db)
 	supplierSvc := services.NewSupplierService(db)
@@ -32,9 +35,9 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 
 	authH := handlers.NewAuthHandler(authSvc, userSvc)
 	dashH := handlers.NewDashboardHandler(dashSvc)
-	usersH := handlers.NewUsersHandler(userSvc, reqSvc)
-	accountsH := handlers.NewAccountsHandler(accountSvc)
-	reqH := handlers.NewRequisitionsHandler(reqSvc, accountSvc, categorySvc, supplierSvc, auditSvc)
+	usersH := handlers.NewUsersHandler(userSvc)
+	accountsH := handlers.NewAccountsHandler(accountSvc, workflowSvc)
+	reqH := handlers.NewRequisitionsHandler(reqSvc, accountSvc, categorySvc, supplierSvc, auditSvc, workflowSvc)
 	reportsH := handlers.NewReportsHandler(reportSvc)
 	notifH := handlers.NewNotificationHandler(notifSvc)
 	uploadH := handlers.NewUploadHandler()
@@ -42,7 +45,7 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 	categoryH := handlers.NewCategoryHandler(categorySvc)
 	budgetH := handlers.NewBudgetHandler(budgetSvc, categorySvc)
 	supplierH := handlers.NewSupplierHandler(supplierSvc)
-	settingsH := handlers.NewSettingsHandler(settingsSvc, backupSvc, auditSvc)
+	settingsH := handlers.NewSettingsHandler(settingsSvc, backupSvc, auditSvc, workflowSvc)
 	statsH := handlers.NewStatsHandler(statsSvc)
 	exportH := handlers.NewExportHandler(exportSvc, reportSvc, reqSvc)
 	apiH := handlers.NewAPIHandler(reqSvc, accountSvc, statsSvc)
@@ -88,7 +91,6 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 	users.POST("/:id/delete", usersH.Delete)
 	users.POST("/:id/roles", usersH.ToggleRole)
 	users.POST("/:id/toggle", usersH.ToggleActive)
-	users.POST("/:id/can-disburse", usersH.ToggleCanDisburse)
 
 	// Comptes — Admin + Accountant
 	accounts := auth.Group("/accounts")
@@ -97,7 +99,7 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 	accounts.GET("/new", accountsH.NewPage)
 	accounts.POST("", accountsH.Create)
 	accounts.GET("/:id", accountsH.Detail)
-	accounts.POST("/:id/fund", middlewares.RequireRoles(models.RoleAccountant), accountsH.Fund)
+	accounts.POST("/:id/fund", accountsH.Fund)
 
 	// Catégories — Admin + Super Admin
 	categories := auth.Group("/categories")
@@ -129,8 +131,8 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 	// Réquisitions
 	req := auth.Group("/requisitions")
 	req.GET("", reqH.List)
-	req.GET("/new", middlewares.RequireRoles(models.RoleStaff, models.RoleAdmin, models.RoleSuperAdmin), reqH.NewPage)
-	req.POST("", middlewares.RequireRoles(models.RoleStaff, models.RoleAdmin, models.RoleSuperAdmin), reqH.Create)
+	req.GET("/new", reqH.NewPage)
+	req.POST("", reqH.Create)
 	req.GET("/:id/export", exportH.RequisitionExport)
 	req.GET("/:id/edit", reqH.EditPage)
 	req.POST("/:id/edit", reqH.Update)
@@ -170,6 +172,7 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 	settings.Use(middlewares.RequireRoles(models.RoleSuperAdmin))
 	settings.GET("", settingsH.Index)
 	settings.POST("", settingsH.Save)
+	settings.POST("/workflow", settingsH.SaveWorkflow)
 	settings.POST("/backup", settingsH.Backup)
 
 	// API REST
@@ -178,5 +181,5 @@ func Setup(r *gin.Engine, db *gorm.DB) {
 	api.GET("/requisitions", apiH.ListRequisitions)
 	api.GET("/requisitions/:id", apiH.GetRequisition)
 	api.GET("/accounts", apiH.ListAccounts)
-	api.GET("/stats", apiH.Stats)
+	api.GET("/stats", middlewares.RequireRoles(models.RoleAdmin, models.RoleAccountant, models.RoleSuperAdmin, models.RoleCashier), apiH.Stats)
 }

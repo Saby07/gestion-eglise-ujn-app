@@ -89,6 +89,11 @@ func seedDefaults(ctx context.Context, db *gorm.DB) error {
 		}
 	}
 
+	workflowSvc := services.NewWorkflowService(db, settingsSvc)
+	if err := workflowSvc.EnsureDefault(ctx); err != nil {
+		return err
+	}
+
 	catSvc := services.NewCategoryService(db)
 	for _, name := range []string{"Culte", "Entretien", "Évangélisation", "Social", "Administration"} {
 		var count int64

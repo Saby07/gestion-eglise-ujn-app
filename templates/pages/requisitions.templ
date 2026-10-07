@@ -12,7 +12,7 @@ templ RequisitionsList(vm viewmodels.LayoutVM, list []models.Requisition, filter
 }
 
 templ requisitionsListBody(vm viewmodels.LayoutVM, list []models.Requisition, filter string, search viewmodels.RequisitionSearchVM, categories []viewmodels.CategoryVM) {
-	@components.PageHeader("Réquisitions", "Réquisitions")
+	@components.PageHeader("Réquisitions", "Réquisitions", vm.Alert)
 	<div class="card mb-3">
 		<div class="card-body">
 			<form method="get" action="/requisitions" class="row g-2 align-items-end">
@@ -128,15 +128,15 @@ func requisitionListCategory(r models.Requisition) string {
 	return name
 }
 
-templ RequisitionForm(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM) {
-	@AppLayout(vm, requisitionFormBody(vm, accounts, categories, suppliers))
+templ RequisitionForm(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM, canAttachDocs bool) {
+	@AppLayout(vm, requisitionFormBody(vm, accounts, categories, suppliers, canAttachDocs))
 }
 
-templ requisitionFormBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM) {
-	@components.PageHeader("Nouvelle réquisition", "Réquisitions")
+templ requisitionFormBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM, canAttachDocs bool) {
+	@components.PageHeader("Nouvelle réquisition", "Réquisitions", vm.Alert)
 	<div class="card">
 		<div class="card-body">
-			<form method="post" action="/requisitions" id="req-form">
+			<form method="post" action="/requisitions" id="req-form" enctype="multipart/form-data">
 				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
 				<div class="row g-3 mb-3">
 					<div class="col-md-6">
@@ -183,6 +183,19 @@ templ requisitionFormBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccoun
 								</select>
 							</div>
 						}
+					</div>
+				}
+				if canAttachDocs {
+					<h5 class="mb-3">Pièces jointes fournisseur</h5>
+					<p class="text-muted small mb-3">Optionnel — facture, bons et infos fournisseur.</p>
+					<div class="row g-3 mb-3">
+						<div class="col-md-6"><label class="form-label">Facture</label><input type="file" name="invoice" class="form-control"/></div>
+						<div class="col-md-6"><label class="form-label">Bon de livraison</label><input type="file" name="delivery_note" class="form-control"/></div>
+						<div class="col-md-6"><label class="form-label">Bon de commande</label><input type="file" name="purchase_order" class="form-control"/></div>
+						<div class="col-md-6"><label class="form-label">Bon de réception</label><input type="file" name="reception_note" class="form-control"/></div>
+						<div class="col-md-4"><input name="supplier_name" class="form-control" placeholder="Nom fournisseur"/></div>
+						<div class="col-md-4"><input name="supplier_phone" class="form-control" placeholder="Téléphone"/></div>
+						<div class="col-md-4"><input name="supplier_address" class="form-control" placeholder="Adresse"/></div>
 					</div>
 				}
 				<h5 class="mb-3">Articles <span class="text-danger">*</span></h5>

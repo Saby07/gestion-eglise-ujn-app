@@ -11,12 +11,13 @@ import (
 )
 
 type NotificationService struct {
-	db       *gorm.DB
-	emailSvc *EmailService
+	db          *gorm.DB
+	emailSvc    *EmailService
+	workflowSvc *WorkflowService
 }
 
-func NewNotificationService(db *gorm.DB, emailSvc *EmailService) *NotificationService {
-	return &NotificationService{db: db, emailSvc: emailSvc}
+func NewNotificationService(db *gorm.DB, emailSvc *EmailService, workflowSvc *WorkflowService) *NotificationService {
+	return &NotificationService{db: db, emailSvc: emailSvc, workflowSvc: workflowSvc}
 }
 
 func (s *NotificationService) ListForUser(ctx context.Context, userID uint, limit int) ([]models.Notification, error) {
@@ -125,18 +126,27 @@ func (s *NotificationService) createForUsers(ctx context.Context, requisitionID 
 }
 
 func (s *NotificationService) recipientsForStep(ctx context.Context, step models.RequisitionStep) ([]models.User, error) {
-	switch step {
-	case models.StepPendingAccountant:
-		return s.findUsersByRoles(ctx, models.RoleAccountant)
-	case models.StepPendingAdmin:
-		return s.findUsersByRoles(ctx, models.RoleAdmin, models.RoleSuperAdmin)
-	case models.StepPendingSuperAdmin:
-		return s.findUsersByRoles(ctx, models.RoleSuperAdmin)
-	case models.StepPendingDisbursement:
+	if step == models.StepPendingDisbursement {
 		return s.findDisbursers(ctx)
-	default:
-		return nil, nil
 	}
+	if role, ok := models.RoleFromPendingStep(step); ok {
+		return s.findUsersByRoles(ctx, role)
+	}
+	return nil, nil
+}
+
+func (s *NotificationService) findDisbursers(ctx context.Context) ([]models.User, error) {
+	roles := []models.RoleKey{models.RoleCashier}
+	if s.workflowSvc != nil {
+		schema, err := s.workflowSvc.Load(ctx)
+		if err == nil {
+			roles = RolesWithCapability(schema, models.CapDisburse)
+		}
+	}
+	if len(roles) == 0 {
+		roles = []models.RoleKey{models.RoleCashier}
+	}
+	return s.findUsersByRoles(ctx, roles...)
 }
 
 func (s *NotificationService) findUsersByRoles(ctx context.Context, roles ...models.RoleKey) ([]models.User, error) {
@@ -159,48 +169,14 @@ func (s *NotificationService) findUsersByRoles(ctx context.Context, roles ...mod
 	return users, err
 }
 
-func (s *NotificationService) findDisbursers(ctx context.Context) ([]models.User, error) {
-	cashiers, err := s.findUsersByRoles(ctx, models.RoleCashier)
-	if err != nil {
-		return nil, err
-	}
-	var accountants []models.User
-	err = s.db.WithContext(ctx).
-		Preload("Roles.Role").
-		Joins("JOIN user_roles ON user_roles.user_id = users.id AND user_roles.deleted_at IS NULL").
-		Joins("JOIN roles ON roles.id = user_roles.role_id AND roles.deleted_at IS NULL").
-		Where("users.is_active = ? AND users.deleted_at IS NULL AND users.can_disburse = ?", true, true).
-		Where("roles.key = ?", models.RoleAccountant).
-		Distinct().
-		Find(&accountants).Error
-	if err != nil {
-		return nil, err
-	}
-	seen := make(map[uint]struct{})
-	out := make([]models.User, 0, len(cashiers)+len(accountants))
-	for _, u := range append(cashiers, accountants...) {
-		if _, ok := seen[u.ID]; ok {
-			continue
-		}
-		seen[u.ID] = struct{}{}
-		out = append(out, u)
-	}
-	return out, nil
-}
-
 func stepNotificationMessage(step models.RequisitionStep, title, actor string) string {
-	switch step {
-	case models.StepPendingAccountant:
-		return fmt.Sprintf("Nouvelle réquisition « %s » soumise par %s — validation comptable requise", title, actor)
-	case models.StepPendingAdmin:
-		return fmt.Sprintf("Réquisition « %s » validée par %s — validation admin requise", title, actor)
-	case models.StepPendingSuperAdmin:
-		return fmt.Sprintf("Réquisition « %s » validée par %s — validation super admin requise", title, actor)
-	case models.StepPendingDisbursement:
+	if step == models.StepPendingDisbursement {
 		return fmt.Sprintf("Réquisition « %s » validée par %s — prête au décaissement", title, actor)
-	default:
-		return fmt.Sprintf("Réquisition « %s » — action requise", title)
 	}
+	if role, ok := models.RoleFromPendingStep(step); ok {
+		return fmt.Sprintf("Réquisition « %s » — validation %s requise (par %s)", title, role.Label(), actor)
+	}
+	return fmt.Sprintf("Réquisition « %s » — action requise", title)
 }
 
 func FormatTimeAgo(t time.Time) string {

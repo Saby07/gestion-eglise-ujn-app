@@ -65,7 +65,8 @@ func main() {
 	if envBool("REMINDER_ENABLED") {
 		settingsSvc := services.NewSettingsService(db)
 		emailSvc := services.NewEmailService(settingsSvc)
-		notifSvc := services.NewNotificationService(db, emailSvc)
+		workflowSvc := services.NewWorkflowService(db, settingsSvc)
+		notifSvc := services.NewNotificationService(db, emailSvc, workflowSvc)
 		reminderSvc := services.NewReminderService(db, settingsSvc, notifSvc, emailSvc)
 		go func() {
 			ticker := time.NewTicker(24 * time.Hour)

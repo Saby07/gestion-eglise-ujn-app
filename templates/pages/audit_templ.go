@@ -63,7 +63,7 @@ func auditLogBody(vm viewmodels.LayoutVM, rows []viewmodels.AuditLogRow) templ.C
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.PageHeader("Journal d'audit", "Audit").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.PageHeader("Journal d'audit", "Audit", vm.Alert).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

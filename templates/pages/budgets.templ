@@ -11,7 +11,7 @@ templ Budgets(vm viewmodels.LayoutVM, year int, list []viewmodels.BudgetVM) {
 }
 
 templ budgetsBody(vm viewmodels.LayoutVM, year int, list []viewmodels.BudgetVM) {
-	@components.PageHeader("Budgets annuels", "Budgets")
+	@components.PageHeader("Budgets annuels", "Budgets", vm.Alert)
 	<div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
 		<form method="get" action="/budgets" class="d-flex gap-2 align-items-center">
 			<label class="form-label mb-0">Année</label>
@@ -75,7 +75,7 @@ templ BudgetNew(vm viewmodels.LayoutVM, year int, categories []viewmodels.Catego
 }
 
 templ budgetNewBody(vm viewmodels.LayoutVM, year int, categories []viewmodels.CategoryVM) {
-	@components.PageHeader("Nouveau budget", "Budgets")
+	@components.PageHeader("Nouveau budget", "Budgets", vm.Alert)
 	<div class="card">
 		<div class="card-body">
 			<form method="post" action="/budgets">

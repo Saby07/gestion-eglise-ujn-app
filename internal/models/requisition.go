@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type CreatorRole string
 
@@ -19,6 +22,24 @@ const (
 	StepDisbursed           RequisitionStep = "disbursed"
 	StepCancelled           RequisitionStep = "cancelled"
 )
+
+// PendingStepFor returns the current_step value for a validation role.
+func PendingStepFor(role RoleKey) RequisitionStep {
+	return RequisitionStep("pending_" + string(role))
+}
+
+// RoleFromPendingStep extracts the role key from a pending_* step.
+func RoleFromPendingStep(step RequisitionStep) (RoleKey, bool) {
+	s := string(step)
+	if step == StepPendingDisbursement || !strings.HasPrefix(s, "pending_") {
+		return "", false
+	}
+	role := RoleKey(strings.TrimPrefix(s, "pending_"))
+	if !role.Valid() {
+		return "", false
+	}
+	return role, true
+}
 
 type RequisitionStatus string
 
@@ -50,7 +71,7 @@ type Requisition struct {
 	ReturnedAt   *time.Time `gorm:"index"`
 	ReturnedBy   *uint      `gorm:"index"`
 
-	// Justifications comptable (optionnelles)
+	// Justifications fournisseur (optionnelles)
 	InvoicePath       string `gorm:"type:varchar(500)"`
 	DeliveryNotePath  string `gorm:"type:varchar(500)"`
 	PurchaseOrderPath string `gorm:"type:varchar(500)"`
@@ -66,6 +87,9 @@ type Requisition struct {
 	Items        []RequisitionItem       `gorm:"foreignKey:RequisitionID"`
 	Validations  []RequisitionValidation `gorm:"foreignKey:RequisitionID"`
 	Disbursement *Disbursement           `gorm:"foreignKey:RequisitionID"`
+
+	// ActiveChain is set at runtime for NextValidationStep (not persisted).
+	ActiveChain []ValidationStepKey `gorm:"-"`
 }
 
 func (Requisition) TableName() string { return "requisitions" }
@@ -102,16 +126,20 @@ type RequisitionValidation struct {
 
 func (RequisitionValidation) TableName() string { return "requisition_validations" }
 
-// WorkflowSteps retourne la chaîne de validation selon le rôle créateur.
-func WorkflowSteps(creator CreatorRole) []ValidationStepKey {
+// WorkflowSteps returns the configured chain if set, else legacy creator-based chain.
+func (r *Requisition) WorkflowSteps() []ValidationStepKey {
+	if len(r.ActiveChain) > 0 {
+		return r.ActiveChain
+	}
+	return LegacyWorkflowSteps(r.CreatorRole)
+}
+
+// LegacyWorkflowSteps keeps old behaviour as fallback when ActiveChain is unset.
+func LegacyWorkflowSteps(creator CreatorRole) []ValidationStepKey {
 	if creator == CreatorAdmin {
 		return []ValidationStepKey{ValAccountant, ValSuperAdmin}
 	}
 	return []ValidationStepKey{ValAccountant, ValAdmin, ValSuperAdmin}
-}
-
-func (r *Requisition) WorkflowSteps() []ValidationStepKey {
-	return WorkflowSteps(r.CreatorRole)
 }
 
 func (r *Requisition) IsValidated(step ValidationStepKey) bool {
@@ -130,4 +158,8 @@ func (r *Requisition) NextValidationStep() ValidationStepKey {
 		}
 	}
 	return ""
+}
+
+func (r *Requisition) SetActiveChain(chain []ValidationStepKey) {
+	r.ActiveChain = chain
 }

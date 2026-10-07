@@ -11,7 +11,7 @@ templ Suppliers(vm viewmodels.LayoutVM, list []viewmodels.SupplierVM) {
 }
 
 templ suppliersBody(vm viewmodels.LayoutVM, list []viewmodels.SupplierVM) {
-	@components.PageHeader("Fournisseurs", "Fournisseurs")
+	@components.PageHeader("Fournisseurs", "Fournisseurs", vm.Alert)
 	<div class="row g-4">
 		<div class="col-lg-4">
 			<div class="card">
@@ -104,7 +104,7 @@ templ SupplierEdit(vm viewmodels.LayoutVM, s viewmodels.SupplierVM) {
 }
 
 templ supplierEditBody(vm viewmodels.LayoutVM, s viewmodels.SupplierVM) {
-	@components.PageHeader("Modifier fournisseur", "Fournisseurs")
+	@components.PageHeader("Modifier fournisseur", "Fournisseurs", vm.Alert)
 	<div class="card">
 		<div class="card-body">
 			<form method="post" action={ fmt.Sprintf("/suppliers/%d/edit", s.ID) }>

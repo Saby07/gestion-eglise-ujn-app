@@ -76,7 +76,7 @@ func (h *AuthHandler) ProfileUpdatePassword(c *gin.Context) {
 		return
 	}
 	if err := services.ValidatePassword(password); err != nil {
-		httputil.RedirectFlash(c, "/profile/password", "Mot de passe trop court (8 caractères minimum)")
+		httputil.RedirectFlash(c, "/profile/password", err.Error())
 		return
 	}
 	if password != confirm {
@@ -105,12 +105,11 @@ func (h *DashboardHandler) Index(c *gin.Context) {
 }
 
 type UsersHandler struct {
-	users  *services.UserService
-	reqSvc *services.RequisitionService
+	users *services.UserService
 }
 
-func NewUsersHandler(users *services.UserService, reqSvc *services.RequisitionService) *UsersHandler {
-	return &UsersHandler{users: users, reqSvc: reqSvc}
+func NewUsersHandler(users *services.UserService) *UsersHandler {
+	return &UsersHandler{users: users}
 }
 
 func (h *UsersHandler) List(c *gin.Context) {
@@ -192,7 +191,7 @@ func (h *UsersHandler) UpdatePassword(c *gin.Context) {
 	password := c.PostForm("password")
 	confirm := c.PostForm("password_confirm")
 	if err := services.ValidatePassword(password); err != nil {
-		httputil.RedirectFlash(c, fmt.Sprintf("/users/%d/password", id), "Mot de passe trop court (8 caractères minimum)")
+		httputil.RedirectFlash(c, fmt.Sprintf("/users/%d/password", id), err.Error())
 		return
 	}
 	if password != confirm {
@@ -234,13 +233,6 @@ func (h *UsersHandler) ToggleActive(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	_ = h.users.ToggleActive(c.Request.Context(), uint(id))
 	httputil.RedirectFlash(c, "/users", "Statut mis à jour")
-}
-
-func (h *UsersHandler) ToggleCanDisburse(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	allowed := c.PostForm("allowed") == "1"
-	_ = h.reqSvc.SetAccountantCanDisburse(c.Request.Context(), uint(id), allowed)
-	httputil.RedirectFlash(c, "/users", "Autorisation décaissement mise à jour")
 }
 
 func (h *UsersHandler) Delete(c *gin.Context) {

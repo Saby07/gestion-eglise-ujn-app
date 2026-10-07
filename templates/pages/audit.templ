@@ -10,7 +10,7 @@ templ AuditLog(vm viewmodels.LayoutVM, rows []viewmodels.AuditLogRow) {
 }
 
 templ auditLogBody(vm viewmodels.LayoutVM, rows []viewmodels.AuditLogRow) {
-	@components.PageHeader("Journal d'audit", "Audit")
+	@components.PageHeader("Journal d'audit", "Audit", vm.Alert)
 	<div class="card">
 		<div class="card-body app-datatable-card">
 			<table id="audit-datatable" class="table table-striped table-sm align-middle dt-responsive nowrap w-100">

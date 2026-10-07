@@ -61,20 +61,25 @@ type DashboardMetrics struct {
 }
 
 type DashboardService struct {
-	db         *gorm.DB
-	accountSvc *AccountService
-	reqSvc     *RequisitionService
+	db          *gorm.DB
+	accountSvc  *AccountService
+	reqSvc      *RequisitionService
+	workflowSvc *WorkflowService
 }
 
-func NewDashboardService(db *gorm.DB, accountSvc *AccountService, reqSvc *RequisitionService) *DashboardService {
-	return &DashboardService{db: db, accountSvc: accountSvc, reqSvc: reqSvc}
+func NewDashboardService(db *gorm.DB, accountSvc *AccountService, reqSvc *RequisitionService, workflowSvc *WorkflowService) *DashboardService {
+	return &DashboardService{db: db, accountSvc: accountSvc, reqSvc: reqSvc, workflowSvc: workflowSvc}
 }
 
 func (s *DashboardService) Metrics(ctx context.Context, user *models.User) (*DashboardMetrics, error) {
 	m := &DashboardMetrics{}
 	if user != nil {
 		m.Role = user.PrimaryRole()
-		m.CanDisburse = user.HasRole(models.RoleCashier) || (user.HasRole(models.RoleAccountant) && user.CanDisburse)
+		if s.workflowSvc != nil {
+			m.CanDisburse, _ = s.workflowSvc.Can(ctx, user, models.CapDisburse)
+		} else {
+			m.CanDisburse = user.HasRole(models.RoleCashier)
+		}
 	}
 
 	s.loadGlobalCounts(ctx, m, user)

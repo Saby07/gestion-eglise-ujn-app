@@ -65,7 +65,7 @@ func requisitionsListBody(vm viewmodels.LayoutVM, list []models.Requisition, fil
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.PageHeader("Réquisitions", "Réquisitions").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.PageHeader("Réquisitions", "Réquisitions", vm.Alert).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -602,7 +602,7 @@ func requisitionListCategory(r models.Requisition) string {
 	return name
 }
 
-func RequisitionForm(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM) templ.Component {
+func RequisitionForm(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM, canAttachDocs bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -623,7 +623,7 @@ func RequisitionForm(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, ca
 			templ_7745c5c3_Var39 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = AppLayout(vm, requisitionFormBody(vm, accounts, categories, suppliers)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppLayout(vm, requisitionFormBody(vm, accounts, categories, suppliers, canAttachDocs)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -631,7 +631,7 @@ func RequisitionForm(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, ca
 	})
 }
 
-func requisitionFormBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM) templ.Component {
+func requisitionFormBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount, categories []viewmodels.CategoryVM, suppliers []viewmodels.SupplierVM, canAttachDocs bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -652,11 +652,11 @@ func requisitionFormBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount
 			templ_7745c5c3_Var40 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.PageHeader("Nouvelle réquisition", "Réquisitions").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.PageHeader("Nouvelle réquisition", "Réquisitions", vm.Alert).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<div class=\"card\"><div class=\"card-body\"><form method=\"post\" action=\"/requisitions\" id=\"req-form\"><input type=\"hidden\" name=\"csrf_token\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<div class=\"card\"><div class=\"card-body\"><form method=\"post\" action=\"/requisitions\" id=\"req-form\" enctype=\"multipart/form-data\"><input type=\"hidden\" name=\"csrf_token\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -809,7 +809,13 @@ func requisitionFormBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<h5 class=\"mb-3\">Articles <span class=\"text-danger\">*</span></h5><div id=\"items-container\"><div class=\"row g-2 mb-2 item-row\"><div class=\"col-md-5\"><input name=\"designation\" class=\"form-control\" placeholder=\"Désignation\" required></div><div class=\"col-md-2\"><input type=\"number\" step=\"0.01\" name=\"quantity\" class=\"form-control\" placeholder=\"Qté\" required></div><div class=\"col-md-3\"><input type=\"number\" step=\"0.01\" name=\"unit_price\" class=\"form-control\" placeholder=\"Prix unitaire\" required></div></div></div><button type=\"button\" class=\"btn btn-sm btn-soft-secondary mb-3\" onclick=\"addItemRow()\">+ Ajouter une ligne</button><div><button class=\"btn btn-success\">Soumettre la réquisition</button></div></form></div></div><script>\n\t\tfunction addItemRow() {\n\t\t\tvar c = document.getElementById('items-container');\n\t\t\tvar row = document.createElement('div');\n\t\t\trow.className = 'row g-2 mb-2 item-row';\n\t\t\trow.innerHTML = '<div class=\"col-md-5\"><input name=\"designation\" class=\"form-control\" placeholder=\"Désignation\" required></div>' +\n\t\t\t\t'<div class=\"col-md-2\"><input type=\"number\" step=\"0.01\" name=\"quantity\" class=\"form-control\" placeholder=\"Qté\" required></div>' +\n\t\t\t\t'<div class=\"col-md-3\"><input type=\"number\" step=\"0.01\" name=\"unit_price\" class=\"form-control\" placeholder=\"Prix unitaire\" required></div>';\n\t\t\tc.appendChild(row);\n\t\t}\n\t</script>")
+		if canAttachDocs {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<h5 class=\"mb-3\">Pièces jointes fournisseur</h5><p class=\"text-muted small mb-3\">Optionnel — facture, bons et infos fournisseur.</p><div class=\"row g-3 mb-3\"><div class=\"col-md-6\"><label class=\"form-label\">Facture</label><input type=\"file\" name=\"invoice\" class=\"form-control\"></div><div class=\"col-md-6\"><label class=\"form-label\">Bon de livraison</label><input type=\"file\" name=\"delivery_note\" class=\"form-control\"></div><div class=\"col-md-6\"><label class=\"form-label\">Bon de commande</label><input type=\"file\" name=\"purchase_order\" class=\"form-control\"></div><div class=\"col-md-6\"><label class=\"form-label\">Bon de réception</label><input type=\"file\" name=\"reception_note\" class=\"form-control\"></div><div class=\"col-md-4\"><input name=\"supplier_name\" class=\"form-control\" placeholder=\"Nom fournisseur\"></div><div class=\"col-md-4\"><input name=\"supplier_phone\" class=\"form-control\" placeholder=\"Téléphone\"></div><div class=\"col-md-4\"><input name=\"supplier_address\" class=\"form-control\" placeholder=\"Adresse\"></div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<h5 class=\"mb-3\">Articles <span class=\"text-danger\">*</span></h5><div id=\"items-container\"><div class=\"row g-2 mb-2 item-row\"><div class=\"col-md-5\"><input name=\"designation\" class=\"form-control\" placeholder=\"Désignation\" required></div><div class=\"col-md-2\"><input type=\"number\" step=\"0.01\" name=\"quantity\" class=\"form-control\" placeholder=\"Qté\" required></div><div class=\"col-md-3\"><input type=\"number\" step=\"0.01\" name=\"unit_price\" class=\"form-control\" placeholder=\"Prix unitaire\" required></div></div></div><button type=\"button\" class=\"btn btn-sm btn-soft-secondary mb-3\" onclick=\"addItemRow()\">+ Ajouter une ligne</button><div><button class=\"btn btn-success\">Soumettre la réquisition</button></div></form></div></div><script>\n\t\tfunction addItemRow() {\n\t\t\tvar c = document.getElementById('items-container');\n\t\t\tvar row = document.createElement('div');\n\t\t\trow.className = 'row g-2 mb-2 item-row';\n\t\t\trow.innerHTML = '<div class=\"col-md-5\"><input name=\"designation\" class=\"form-control\" placeholder=\"Désignation\" required></div>' +\n\t\t\t\t'<div class=\"col-md-2\"><input type=\"number\" step=\"0.01\" name=\"quantity\" class=\"form-control\" placeholder=\"Qté\" required></div>' +\n\t\t\t\t'<div class=\"col-md-3\"><input type=\"number\" step=\"0.01\" name=\"unit_price\" class=\"form-control\" placeholder=\"Prix unitaire\" required></div>';\n\t\t\tc.appendChild(row);\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

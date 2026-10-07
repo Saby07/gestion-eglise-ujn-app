@@ -11,7 +11,7 @@ templ Categories(vm viewmodels.LayoutVM, list []viewmodels.CategoryVM) {
 }
 
 templ categoriesBody(vm viewmodels.LayoutVM, list []viewmodels.CategoryVM) {
-	@components.PageHeader("Catégories de dépenses", "Catégories")
+	@components.PageHeader("Catégories de dépenses", "Catégories", vm.Alert)
 	<div class="row g-4">
 		<div class="col-lg-4">
 			<div class="card">

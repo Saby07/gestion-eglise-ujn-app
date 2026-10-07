@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"eglise_ujn/templates/components"
 	"eglise_ujn/templates/layouts"
 	"eglise_ujn/templates/viewmodels"
 )
@@ -12,7 +11,6 @@ templ AppLayout(vm viewmodels.LayoutVM, content templ.Component) {
 
 templ appContent(vm viewmodels.LayoutVM, content templ.Component) {
 	<div class="container-fluid">
-		@components.Alert(vm.Alert)
 		@content
 	</div>
 }

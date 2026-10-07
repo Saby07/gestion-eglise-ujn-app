@@ -64,7 +64,7 @@ func profilePasswordFormBody(vm viewmodels.LayoutVM, user *models.User) templ.Co
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.PageHeader("Modifier mon mot de passe", "").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.PageHeader("Modifier mon mot de passe", "", vm.Alert).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

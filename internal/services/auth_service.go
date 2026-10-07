@@ -69,5 +69,17 @@ func ValidatePassword(password string) error {
 	if len(password) < 8 {
 		return errors.New("mot de passe trop court (minimum 8 caractères)")
 	}
+	var hasLetter, hasDigit bool
+	for _, r := range password {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+			hasLetter = true
+		case r >= '0' && r <= '9':
+			hasDigit = true
+		}
+	}
+	if !hasLetter || !hasDigit {
+		return errors.New("mot de passe : au moins une lettre et un chiffre")
+	}
 	return nil
 }

@@ -11,7 +11,7 @@ templ NotificationsList(vm viewmodels.LayoutVM, list []viewmodels.NotificationVM
 }
 
 templ notificationsBody(vm viewmodels.LayoutVM, list []viewmodels.NotificationVM) {
-	@components.PageHeader("Notifications", "Notifications")
+	@components.PageHeader("Notifications", "Notifications", vm.Alert)
 	<div class="d-flex justify-content-between align-items-center mb-3">
 		<p class="text-muted mb-0">
 			if vm.UnreadCount > 0 {

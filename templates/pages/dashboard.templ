@@ -13,7 +13,7 @@ templ Dashboard(vm viewmodels.LayoutVM, m *services.DashboardMetrics, user *mode
 }
 
 templ dashboardBody(vm viewmodels.LayoutVM, m *services.DashboardMetrics, user *models.User) {
-	@components.PageHeader("Tableau de bord", "")
+	@components.PageHeader("Tableau de bord", "", vm.Alert)
 	if m == nil {
 		<div class="alert alert-info">Aucune donnée disponible.</div>
 	} else if user != nil && user.PrimaryRole() == models.RoleSuperAdmin {

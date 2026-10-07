@@ -19,11 +19,12 @@ import (
 )
 
 type AccountsHandler struct {
-	svc *services.AccountService
+	svc         *services.AccountService
+	workflowSvc *services.WorkflowService
 }
 
-func NewAccountsHandler(svc *services.AccountService) *AccountsHandler {
-	return &AccountsHandler{svc: svc}
+func NewAccountsHandler(svc *services.AccountService, workflowSvc *services.WorkflowService) *AccountsHandler {
+	return &AccountsHandler{svc: svc, workflowSvc: workflowSvc}
 }
 
 func (h *AccountsHandler) List(c *gin.Context) {
@@ -59,13 +60,18 @@ func (h *AccountsHandler) Detail(c *gin.Context) {
 	}
 	hist, _ := h.svc.History(c.Request.Context(), uint(id))
 	bal, projected, _ := h.svc.ProjectedBalance(c.Request.Context(), uint(id))
-	httputil.Render(c, http.StatusOK, pages.AccountDetail(layoutFromCtx(c, acc.Name, "accounts"), acc, hist, bal, projected))
+	canFund, _ := h.workflowSvc.Can(c.Request.Context(), middlewares.CurrentUser(c), models.CapFund)
+	httputil.Render(c, http.StatusOK, pages.AccountDetail(layoutFromCtx(c, acc.Name, "accounts"), acc, hist, bal, projected, canFund))
 }
 
 func (h *AccountsHandler) Fund(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	amount, _ := strconv.ParseFloat(strings.TrimSpace(c.PostForm("amount")), 64)
 	cur := middlewares.CurrentUser(c)
+	if ok, _ := h.workflowSvc.Can(c.Request.Context(), cur, models.CapFund); !ok {
+		httputil.RedirectFlash(c, "/accounts/"+c.Param("id"), "Approvisionnement non autorisé pour votre rôle")
+		return
+	}
 	err := h.svc.Fund(c.Request.Context(), uint(id), amount, strings.TrimSpace(c.PostForm("label")), cur.ID, cur.FullName())
 	if err != nil {
 		httputil.RedirectFlash(c, "/accounts/"+c.Param("id"), "Erreur lors de l'approvisionnement")
@@ -80,6 +86,7 @@ type RequisitionsHandler struct {
 	categorySvc *services.CategoryService
 	supplierSvc *services.SupplierService
 	auditSvc    *services.AuditService
+	workflowSvc *services.WorkflowService
 }
 
 func NewRequisitionsHandler(
@@ -88,10 +95,12 @@ func NewRequisitionsHandler(
 	categorySvc *services.CategoryService,
 	supplierSvc *services.SupplierService,
 	auditSvc *services.AuditService,
+	workflowSvc *services.WorkflowService,
 ) *RequisitionsHandler {
 	return &RequisitionsHandler{
 		svc: svc, accountSvc: accountSvc,
 		categorySvc: categorySvc, supplierSvc: supplierSvc, auditSvc: auditSvc,
+		workflowSvc: workflowSvc,
 	}
 }
 
@@ -129,12 +138,18 @@ func hasSearchQuery(c *gin.Context) bool {
 }
 
 func (h *RequisitionsHandler) NewPage(c *gin.Context) {
+	user := middlewares.CurrentUser(c)
+	if ok, _ := h.workflowSvc.Can(c.Request.Context(), user, models.CapCreate); !ok {
+		httputil.RedirectFlash(c, "/requisitions", "Création non autorisée pour votre rôle")
+		return
+	}
 	accounts, _ := h.accountSvc.List(c.Request.Context())
 	categories, _ := h.categorySvc.List(c.Request.Context(), true)
 	suppliers, _ := h.supplierSvc.List(c.Request.Context(), true)
+	canAttach, _ := h.workflowSvc.Can(c.Request.Context(), user, models.CapAttachDocs)
 	httputil.Render(c, http.StatusOK, pages.RequisitionForm(
 		layoutFromCtx(c, "Nouvelle réquisition", "requisitions"),
-		accounts, mapCategories(categories), mapSuppliers(suppliers),
+		accounts, mapCategories(categories), mapSuppliers(suppliers), canAttach,
 	))
 }
 
@@ -150,12 +165,29 @@ func (h *RequisitionsHandler) Create(c *gin.Context) {
 	categoryID := parseOptionalUint(c.PostForm("category_id"))
 	accountID := parseOptionalUint(c.PostForm("account_id"))
 	supplierID := parseOptionalUint(c.PostForm("supplier_id"))
-	_, err = h.svc.Create(c.Request.Context(), user, title, date, items, categoryID, accountID, supplierID)
+	var extras *services.AccountantExtras
+	if ok, _ := h.workflowSvc.Can(c.Request.Context(), user, models.CapAttachDocs); ok {
+		extras = parseDocExtras(c)
+	}
+	_, err = h.svc.Create(c.Request.Context(), user, title, date, items, categoryID, accountID, supplierID, extras)
 	if err != nil {
-		httputil.RedirectFlash(c, "/requisitions/new", "Erreur lors de la création")
+		httputil.RedirectFlash(c, "/requisitions/new", requisitionErrMsg(err))
 		return
 	}
 	httputil.RedirectFlash(c, "/requisitions", "Réquisition créée")
+}
+
+func parseDocExtras(c *gin.Context) *services.AccountantExtras {
+	inv, _ := upload.SaveFormFile(c, "invoice", "invoice")
+	dn, _ := upload.SaveFormFile(c, "delivery_note", "delivery")
+	po, _ := upload.SaveFormFile(c, "purchase_order", "po")
+	rn, _ := upload.SaveFormFile(c, "reception_note", "reception")
+	return &services.AccountantExtras{
+		InvoicePath: inv, DeliveryNotePath: dn, PurchaseOrderPath: po, ReceptionNotePath: rn,
+		SupplierName:    strings.TrimSpace(c.PostForm("supplier_name")),
+		SupplierPhone:   strings.TrimSpace(c.PostForm("supplier_phone")),
+		SupplierAddress: strings.TrimSpace(c.PostForm("supplier_address")),
+	}
 }
 
 func (h *RequisitionsHandler) EditPage(c *gin.Context) {
@@ -248,9 +280,11 @@ func (h *RequisitionsHandler) Detail(c *gin.Context) {
 		return
 	}
 	accounts, _ := h.accountSvc.List(c.Request.Context())
-	canValidate := canUserValidate(user, req)
+	canValidate := h.svcCanValidate(c, user, req)
 	canCancel := h.svc.CanCancel(user, req)
-	canDisburse := canUserDisburse(user, req)
+	canDisburse := h.svcCanDisburse(c, user, req)
+	canAttach, _ := h.workflowSvc.Can(c.Request.Context(), user, models.CapAttachDocs)
+	canCreate, _ := h.workflowSvc.Can(c.Request.Context(), user, models.CapCreate)
 	canEdit := h.svc.CanEdit(user, req)
 	var projected float64
 	balanceInsufficient := false
@@ -258,33 +292,23 @@ func (h *RequisitionsHandler) Detail(c *gin.Context) {
 		_, projected, _ = h.accountSvc.ProjectedBalance(c.Request.Context(), *req.AccountID)
 		balanceInsufficient = projected < req.TotalAmount
 	}
-	httputil.Render(c, http.StatusOK, pages.RequisitionDetail(layoutFromCtx(c, req.Title, "requisitions"), req, user, accounts, canValidate, canCancel, canDisburse, canEdit, projected, balanceInsufficient))
+	httputil.Render(c, http.StatusOK, pages.RequisitionDetail(layoutFromCtx(c, req.Title, "requisitions"), req, user, accounts, canValidate, canCancel, canDisburse, canEdit, canCreate, canAttach, projected, balanceInsufficient))
 }
 
-func canUserValidate(user *models.User, req *models.Requisition) bool {
+func (h *RequisitionsHandler) svcCanValidate(c *gin.Context, user *models.User, req *models.Requisition) bool {
 	step := req.NextValidationStep()
 	if step == "" {
 		return false
 	}
-	switch step {
-	case models.ValAccountant:
-		return user.HasRole(models.RoleAccountant)
-	case models.ValAdmin:
-		return user.HasRole(models.RoleAdmin) || user.HasRole(models.RoleSuperAdmin)
-	case models.ValSuperAdmin:
-		return user.HasRole(models.RoleSuperAdmin)
-	}
-	return false
+	return services.UserCanValidateStep(user, step)
 }
 
-func canUserDisburse(user *models.User, req *models.Requisition) bool {
+func (h *RequisitionsHandler) svcCanDisburse(c *gin.Context, user *models.User, req *models.Requisition) bool {
 	if req.CurrentStep != models.StepPendingDisbursement {
 		return false
 	}
-	if user.HasRole(models.RoleCashier) {
-		return true
-	}
-	return user.HasRole(models.RoleAccountant) && user.CanDisburse
+	ok, _ := h.workflowSvc.Can(c.Request.Context(), user, models.CapDisburse)
+	return ok
 }
 
 func requisitionErrMsg(err error) string {
@@ -299,18 +323,15 @@ func (h *RequisitionsHandler) Validate(c *gin.Context) {
 	user := middlewares.CurrentUser(c)
 	sigPath, _ := parseSignature(c)
 	extras := &services.AccountantExtras{SignaturePath: sigPath}
-	if user.HasRole(models.RoleAccountant) {
-		inv, _ := upload.SaveFormFile(c, "invoice", "invoice")
-		dn, _ := upload.SaveFormFile(c, "delivery_note", "delivery")
-		po, _ := upload.SaveFormFile(c, "purchase_order", "po")
-		rn, _ := upload.SaveFormFile(c, "reception_note", "reception")
-		extras.InvoicePath = inv
-		extras.DeliveryNotePath = dn
-		extras.PurchaseOrderPath = po
-		extras.ReceptionNotePath = rn
-		extras.SupplierName = strings.TrimSpace(c.PostForm("supplier_name"))
-		extras.SupplierPhone = strings.TrimSpace(c.PostForm("supplier_phone"))
-		extras.SupplierAddress = strings.TrimSpace(c.PostForm("supplier_address"))
+	if ok, _ := h.workflowSvc.Can(c.Request.Context(), user, models.CapAttachDocs); ok {
+		docs := parseDocExtras(c)
+		extras.InvoicePath = docs.InvoicePath
+		extras.DeliveryNotePath = docs.DeliveryNotePath
+		extras.PurchaseOrderPath = docs.PurchaseOrderPath
+		extras.ReceptionNotePath = docs.ReceptionNotePath
+		extras.SupplierName = docs.SupplierName
+		extras.SupplierPhone = docs.SupplierPhone
+		extras.SupplierAddress = docs.SupplierAddress
 	}
 	err := h.svc.Validate(c.Request.Context(), uint(id), user, strings.TrimSpace(c.PostForm("comment")), extras)
 	if err != nil {

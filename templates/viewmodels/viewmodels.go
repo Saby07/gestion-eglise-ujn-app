@@ -25,63 +25,44 @@ type WorkflowStepVM struct {
 }
 
 func BuildWorkflowSteps(req *models.Requisition) []WorkflowStepVM {
-	steps := []struct {
-		key   models.ValidationStepKey
-		label string
-	}{
-		{models.ValAccountant, "Comptable"},
-	}
-	if req.CreatorRole == models.CreatorStaff {
-		steps = append(steps, struct {
-			key   models.ValidationStepKey
-			label string
-		}{models.ValAdmin, "Admin"})
-	}
-	steps = append(steps, struct {
-		key   models.ValidationStepKey
-		label string
-	}{models.ValSuperAdmin, "Super Admin"})
-	steps = append(steps, struct {
-		key   models.ValidationStepKey
-		label string
-	}{"cashier", "Caissier"})
-
-	out := make([]WorkflowStepVM, 0, len(steps))
+	chain := req.WorkflowSteps()
+	out := make([]WorkflowStepVM, 0, len(chain)+1)
 	next := req.NextValidationStep()
-	for _, s := range steps {
-		vm := WorkflowStepVM{Key: string(s.key), Label: s.label}
-		if s.key == "cashier" {
-			vm.Done = req.CurrentStep == models.StepDisbursed || req.Status == models.ReqStatusCompleted
-			vm.Active = req.CurrentStep == models.StepPendingDisbursement
-			if req.Disbursement != nil && req.Disbursement.DisbursedBy.ID > 0 {
-				vm.Validator = req.Disbursement.DisbursedBy.FullName()
-				vm.Date = req.Disbursement.DisbursedAt.Format("02/01/2006 15:04")
+	for _, step := range chain {
+		vm := WorkflowStepVM{
+			Key:   string(step),
+			Label: models.RoleKey(step).Label(),
+		}
+		for _, v := range req.Validations {
+			if v.Step == step {
+				vm.Done = true
+				vm.Validator = v.ValidatedBy.FullName()
+				vm.Date = v.ValidatedAt.Format("02/01/2006 15:04")
 			}
-		} else {
-			for _, v := range req.Validations {
-				if v.Step == s.key {
-					vm.Done = true
-					vm.Validator = v.ValidatedBy.FullName()
-					vm.Date = v.ValidatedAt.Format("02/01/2006 15:04")
-				}
-			}
-			if !vm.Done && string(s.key) == string(next) {
-				vm.Active = true
-			}
+		}
+		if !vm.Done && step == next {
+			vm.Active = true
 		}
 		out = append(out, vm)
 	}
+	disburse := WorkflowStepVM{Key: "disburse", Label: "Décaissement"}
+	disburse.Done = req.CurrentStep == models.StepDisbursed || req.Status == models.ReqStatusCompleted
+	disburse.Active = req.CurrentStep == models.StepPendingDisbursement
+	if req.Disbursement != nil && req.Disbursement.DisbursedBy.ID > 0 {
+		disburse.Validator = req.Disbursement.DisbursedBy.FullName()
+		disburse.Date = req.Disbursement.DisbursedAt.Format("02/01/2006 15:04")
+	}
+	out = append(out, disburse)
 	return out
 }
 
 type UserRow struct {
-	ID          uint
-	FullName    string
-	Email       string
-	Phone       string
-	Roles       string
-	IsActive    bool
-	CanDisburse bool
+	ID       uint
+	FullName string
+	Email    string
+	Phone    string
+	Roles    string
+	IsActive bool
 }
 
 func MapUsers(users []models.User) []UserRow {
@@ -93,7 +74,7 @@ func MapUsers(users []models.User) []UserRow {
 		}
 		rows = append(rows, UserRow{
 			ID: u.ID, FullName: u.FullName(), Email: u.Email, Phone: u.Phone,
-			Roles: join(roles), IsActive: u.IsActive, CanDisburse: u.CanDisburse,
+			Roles: join(roles), IsActive: u.IsActive,
 		})
 	}
 	return rows
@@ -195,26 +176,15 @@ func BuildTimeline(req *models.Requisition) []TimelineEventVM {
 }
 
 func validationStepLabel(step models.ValidationStepKey) string {
-	switch step {
-	case models.ValAccountant:
-		return "Comptable"
-	case models.ValAdmin:
-		return "Admin"
-	case models.ValSuperAdmin:
-		return "Super Admin"
-	default:
-		return string(step)
+	role := models.RoleKey(step)
+	if role.Valid() {
+		return role.Label()
 	}
+	return string(step)
 }
 
 func StepLabel(step models.RequisitionStep) string {
 	switch step {
-	case models.StepPendingAccountant:
-		return "En attente Comptable"
-	case models.StepPendingAdmin:
-		return "En attente Admin"
-	case models.StepPendingSuperAdmin:
-		return "En attente Super Admin"
 	case models.StepPendingDisbursement:
 		return "Prête au décaissement"
 	case models.StepDisbursed:
@@ -222,6 +192,9 @@ func StepLabel(step models.RequisitionStep) string {
 	case models.StepCancelled:
 		return "Annulée"
 	default:
+		if role, ok := models.RoleFromPendingStep(step); ok {
+			return "En attente " + role.Label()
+		}
 		return string(step)
 	}
 }
@@ -276,7 +249,7 @@ func MapRequisitions(list []models.Requisition) []RequisitionRow {
 			ID: r.ID, Title: r.Title, Author: r.User.FullName(),
 			Date: r.RequisitionDate.Format("02/01/2006"), Amount: r.TotalAmount,
 			CategoryName: requisitionCategoryName(r),
-			Step: string(r.CurrentStep), StepLabel: StepLabel(r.CurrentStep),
+			Step:         string(r.CurrentStep), StepLabel: StepLabel(r.CurrentStep),
 			Status: string(r.Status), StatusClass: StatusClass(r.Status, r.CurrentStep),
 		})
 	}
@@ -336,13 +309,33 @@ type SupplierVM struct {
 }
 
 type SettingsVM struct {
-	ChurchName   string
-	DarkMode     bool
-	SMTPHost     string
-	SMTPPort     string
-	SMTPUser     string
-	SMTPFrom     string
-	ReminderDays int
+	ChurchName      string
+	DarkMode        bool
+	SMTPHost        string
+	SMTPPort        string
+	SMTPUser        string
+	SMTPFrom        string
+	ReminderDays    int
+	WorkflowRoles   []WorkflowRoleCapVM
+	WorkflowChain   []WorkflowChainItemVM
+	WorkflowPreview []string
+}
+
+type WorkflowRoleCapVM struct {
+	Key        string
+	Label      string
+	Create     bool
+	AttachDocs bool
+	Disburse   bool
+	Fund       bool
+	IsSuper    bool
+}
+
+type WorkflowChainItemVM struct {
+	Key      string
+	Label    string
+	Selected bool
+	Order    int
 }
 
 type StatsVM struct {

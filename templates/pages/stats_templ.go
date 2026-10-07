@@ -34,7 +34,7 @@ func Stats(vm viewmodels.LayoutVM, s viewmodels.StatsVM) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = AppLayoutCharts(vm, statsBody(s)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppLayoutCharts(vm, statsBody(vm, s)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -42,7 +42,7 @@ func Stats(vm viewmodels.LayoutVM, s viewmodels.StatsVM) templ.Component {
 	})
 }
 
-func statsBody(s viewmodels.StatsVM) templ.Component {
+func statsBody(vm viewmodels.LayoutVM, s viewmodels.StatsVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -63,7 +63,7 @@ func statsBody(s viewmodels.StatsVM) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.PageHeader("Statistiques avancées", "Statistiques").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.PageHeader("Statistiques avancées", "Statistiques", vm.Alert).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

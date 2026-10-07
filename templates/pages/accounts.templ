@@ -12,7 +12,7 @@ templ AccountsList(vm viewmodels.LayoutVM, accounts []models.ChurchAccount) {
 }
 
 templ accountsListBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount) {
-	@components.PageHeader("Comptes de l'église", "Comptes")
+	@components.PageHeader("Comptes de l'église", "Comptes", vm.Alert)
 	<div class="mb-3">
 		<a href="/accounts/new" class="btn btn-primary">Nouveau compte</a>
 	</div>
@@ -37,7 +37,7 @@ templ AccountForm(vm viewmodels.LayoutVM) {
 }
 
 templ accountFormBody(vm viewmodels.LayoutVM) {
-	@components.PageHeader("Nouveau compte", "Comptes")
+	@components.PageHeader("Nouveau compte", "Comptes", vm.Alert)
 	<div class="card">
 		<div class="card-body">
 			<form method="post" action="/accounts">
@@ -64,12 +64,12 @@ templ accountFormBody(vm viewmodels.LayoutVM) {
 	</div>
 }
 
-templ AccountDetail(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64) {
-	@AppLayout(vm, accountDetailBody(vm, acc, hist, balance, projected))
+templ AccountDetail(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64, canFund bool) {
+	@AppLayout(vm, accountDetailBody(vm, acc, hist, balance, projected, canFund))
 }
 
-templ accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64) {
-	@components.PageHeader(acc.Name, "Comptes")
+templ accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64, canFund bool) {
+	@components.PageHeader(acc.Name, "Comptes", vm.Alert)
 	<div class="row mb-4">
 		<div class="col-md-4">
 			<div class="card bg-primary text-white">
@@ -97,7 +97,7 @@ templ accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist 
 			</div>
 		</div>
 	}
-	if vm.IsAccountant {
+	if canFund {
 		<div class="card mb-4">
 			<div class="card-header">Approvisionner le compte</div>
 			<div class="card-body">

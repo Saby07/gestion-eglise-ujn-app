@@ -12,6 +12,7 @@ import (
 	"eglise_ujn/templates/components"
 	"eglise_ujn/templates/viewmodels"
 	"fmt"
+	"strings"
 )
 
 func Settings(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) templ.Component {
@@ -64,7 +65,7 @@ func settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) templ.Compone
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.PageHeader("Paramètres", "Paramètres").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.PageHeader("Paramètres", "Paramètres", vm.Alert).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -75,7 +76,7 @@ func settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) templ.Compone
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.CSRF)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 21, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 22, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -88,7 +89,7 @@ func settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) templ.Compone
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(s.ChurchName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 24, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 25, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -121,7 +122,7 @@ func settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) templ.Compone
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%d", s.ReminderDays))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 35, Col: 128}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 36, Col: 128}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -134,7 +135,7 @@ func settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) templ.Compone
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(s.SMTPHost)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 42, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 43, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -147,7 +148,7 @@ func settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) templ.Compone
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(s.SMTPPort)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 46, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 47, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
@@ -160,7 +161,7 @@ func settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) templ.Compone
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(s.SMTPUser)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 50, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 51, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -173,26 +174,236 @@ func settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) templ.Compone
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(s.SMTPFrom)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 54, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 55, Col: 84}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"></div></div><div class=\"mt-4\"><button class=\"btn btn-success\"><i class=\"ri-save-line me-1\"></i> Enregistrer</button></div></form></div></div></div><div class=\"col-lg-4\"><div class=\"card\"><div class=\"card-header\"><h5 class=\"card-title mb-0\">Sauvegarde</h5></div><div class=\"card-body\"><p class=\"text-muted fs-13\">Générez une sauvegarde complète de la base de données et des fichiers uploadés.</p><form method=\"post\" action=\"/settings/backup\"><input type=\"hidden\" name=\"csrf_token\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"></div></div><div class=\"mt-4\"><button class=\"btn btn-success\"><i class=\"ri-save-line me-1\"></i> Enregistrer</button></div></form></div></div><div class=\"card mt-4\"><div class=\"card-header\"><h5 class=\"card-title mb-0\">Schéma de validation</h5></div><div class=\"card-body\"><p class=\"text-muted fs-13 mb-3\">Configurez les capacités par rôle et la chaîne de validation. Le Super Admin reste toujours le dernier validateur. Les réquisitions en cours suivent la nouvelle chaîne pour les étapes restantes.</p><form method=\"post\" action=\"/settings/workflow\" id=\"workflow-form\"><input type=\"hidden\" name=\"csrf_token\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.CSRF)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 70, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 73, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"> <button class=\"btn btn-primary w-100\"><i class=\"ri-download-cloud-line me-1\"></i> Lancer la sauvegarde</button></form></div></div><div class=\"card mt-3\"><div class=\"card-body\"><h6 class=\"mb-2\">Thème rapide</h6><button type=\"button\" class=\"btn btn-soft-secondary w-100\" data-theme-toggle><i class=\"ri-contrast-2-line me-1\"></i> Basculer clair / sombre</button></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"><h6 class=\"mb-2\">Capacités par rôle</h6><div class=\"table-responsive mb-4\"><table class=\"table table-sm align-middle\"><thead class=\"table-light\"><tr><th>Rôle</th><th class=\"text-center\">Créer</th><th class=\"text-center\">PJ fournisseur</th><th class=\"text-center\">Décaisser</th><th class=\"text-center\">Approvisionner</th></tr></thead> <tbody>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, r := range s.WorkflowRoles {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<tr><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(r.Label)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 89, Col: 24}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</td><td class=\"text-center\"><input type=\"checkbox\" class=\"form-check-input\" name=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue("cap_create_" + r.Key)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 91, Col: 88}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" value=\"1\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if r.Create {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, " checked")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "></td><td class=\"text-center\"><input type=\"checkbox\" class=\"form-check-input\" name=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue("cap_attach_" + r.Key)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 94, Col: 88}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" value=\"1\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if r.AttachDocs {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, " checked")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "></td><td class=\"text-center\"><input type=\"checkbox\" class=\"form-check-input\" name=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var14 string
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue("cap_disburse_" + r.Key)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 97, Col: 90}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" value=\"1\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if r.Disburse {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, " checked")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "></td><td class=\"text-center\"><input type=\"checkbox\" class=\"form-check-input\" name=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var15 string
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue("cap_fund_" + r.Key)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 100, Col: 86}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\" value=\"1\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if r.Fund {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, " checked")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "></td></tr>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</tbody></table></div><h6 class=\"mb-2\">Chaîne de validation (ordre)</h6><p class=\"text-muted fs-13\">Cochez et ordonnez les validateurs intermédiaires. Le Super Admin est ajouté automatiquement à la fin.</p><div class=\"list-group mb-3\" id=\"workflow-chain-list\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, item := range s.WorkflowChain {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<label class=\"list-group-item d-flex align-items-center gap-3\"><input type=\"checkbox\" class=\"form-check-input workflow-chain-cb\" name=\"validation_chain\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var16 string
+			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(item.Key)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 113, Col: 115}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if item.Selected {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, " checked")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, " data-order=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var17 string
+			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%d", item.Order))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 113, Col: 187}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\"> <span class=\"flex-grow-1\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var18 string
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(item.Label)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 114, Col: 47}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</span> <span class=\"btn-group btn-group-sm\"><button type=\"button\" class=\"btn btn-soft-secondary workflow-up\" title=\"Monter\">↑</button> <button type=\"button\" class=\"btn btn-soft-secondary workflow-down\" title=\"Descendre\">↓</button></span></label>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<div class=\"list-group-item bg-light text-muted\"><i class=\"ri-lock-line me-1\"></i> Super Admin (obligatoire — dernier validateur)</div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if len(s.WorkflowPreview) > 0 {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<div class=\"alert alert-info fs-13 mb-3\"><strong>Aperçu du flux :</strong> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var19 string
+			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Join(s.WorkflowPreview, " → "))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 127, Col: 85}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<button class=\"btn btn-primary\"><i class=\"ri-save-line me-1\"></i> Enregistrer le schéma</button></form></div></div></div><div class=\"col-lg-4\"><div class=\"card\"><div class=\"card-header\"><h5 class=\"card-title mb-0\">Sauvegarde</h5></div><div class=\"card-body\"><p class=\"text-muted fs-13\">Générez une sauvegarde complète de la base de données et des fichiers uploadés.</p><form method=\"post\" action=\"/settings/backup\"><input type=\"hidden\" name=\"csrf_token\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var20 string
+		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(vm.CSRF)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/pages/settings.templ`, Line: 141, Col: 60}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\"> <button class=\"btn btn-primary w-100\"><i class=\"ri-download-cloud-line me-1\"></i> Lancer la sauvegarde</button></form></div></div><div class=\"card mt-3\"><div class=\"card-body\"><h6 class=\"mb-2\">Thème rapide</h6><button type=\"button\" class=\"btn btn-soft-secondary w-100\" data-theme-toggle><i class=\"ri-contrast-2-line me-1\"></i> Basculer clair / sombre</button></div></div></div></div><script>\n\t\t(function () {\n\t\t\tvar list = document.getElementById('workflow-chain-list');\n\t\t\tif (!list) return;\n\t\t\tfunction reorderHidden() {\n\t\t\t\tvar items = Array.prototype.slice.call(list.querySelectorAll('label.list-group-item'));\n\t\t\t\titems.forEach(function (el, idx) {\n\t\t\t\t\tvar cb = el.querySelector('.workflow-chain-cb');\n\t\t\t\t\tif (cb) cb.setAttribute('data-order', String(idx));\n\t\t\t\t});\n\t\t\t}\n\t\t\tlist.addEventListener('click', function (e) {\n\t\t\t\tvar btn = e.target.closest('.workflow-up, .workflow-down');\n\t\t\t\tif (!btn) return;\n\t\t\t\te.preventDefault();\n\t\t\t\tvar row = btn.closest('label.list-group-item');\n\t\t\t\tif (!row) return;\n\t\t\t\tif (btn.classList.contains('workflow-up') && row.previousElementSibling && row.previousElementSibling.tagName === 'LABEL') {\n\t\t\t\t\tlist.insertBefore(row, row.previousElementSibling);\n\t\t\t\t}\n\t\t\t\tif (btn.classList.contains('workflow-down') && row.nextElementSibling && row.nextElementSibling.tagName === 'LABEL') {\n\t\t\t\t\tlist.insertBefore(row.nextElementSibling, row);\n\t\t\t\t}\n\t\t\t\treorderHidden();\n\t\t\t});\n\t\t\tdocument.getElementById('workflow-form').addEventListener('submit', function () {\n\t\t\t\tvar form = this;\n\t\t\t\tvar checked = [];\n\t\t\t\tlist.querySelectorAll('label.list-group-item').forEach(function (el) {\n\t\t\t\t\tvar cb = el.querySelector('.workflow-chain-cb');\n\t\t\t\t\tif (cb && cb.checked) checked.push(cb.value);\n\t\t\t\t});\n\t\t\t\tform.querySelectorAll('input[name=\"validation_chain\"]').forEach(function (el) {\n\t\t\t\t\tif (el.type === 'hidden') el.remove();\n\t\t\t\t});\n\t\t\t\tlist.querySelectorAll('.workflow-chain-cb').forEach(function (cb) { cb.disabled = true; });\n\t\t\t\tchecked.forEach(function (v) {\n\t\t\t\t\tvar input = document.createElement('input');\n\t\t\t\t\tinput.type = 'hidden';\n\t\t\t\t\tinput.name = 'validation_chain';\n\t\t\t\t\tinput.value = v;\n\t\t\t\t\tform.appendChild(input);\n\t\t\t\t});\n\t\t\t});\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

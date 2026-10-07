@@ -12,7 +12,7 @@ templ UsersList(vm viewmodels.LayoutVM, users []models.User) {
 }
 
 templ usersListBody(vm viewmodels.LayoutVM, users []models.User) {
-	@components.PageHeader("Utilisateurs", "Utilisateurs")
+	@components.PageHeader("Utilisateurs", "Utilisateurs", vm.Alert)
 	<div class="mb-3">
 		<a href="/users/new" class="btn btn-primary"><i class="ri-add-line"></i> Nouvel utilisateur</a>
 	</div>
@@ -26,7 +26,6 @@ templ usersListBody(vm viewmodels.LayoutVM, users []models.User) {
 							<th>Email</th>
 							<th>Rôles</th>
 							<th>Statut</th>
-							<th>Décaisser</th>
 							<th>Actions</th>
 						</tr>
 					</thead>
@@ -41,15 +40,6 @@ templ usersListBody(vm viewmodels.LayoutVM, users []models.User) {
 										<span class="badge bg-success">Actif</span>
 									} else {
 										<span class="badge bg-secondary">Inactif</span>
-									}
-								</td>
-								<td>
-									if u.HasRole(models.RoleAccountant) {
-										if u.CanDisburse {
-											<span class="badge bg-info">Oui</span>
-										} else {
-											<span class="badge bg-light text-dark">Non</span>
-										}
 									}
 								</td>
 								<td>
@@ -78,19 +68,6 @@ templ usersListBody(vm viewmodels.LayoutVM, users []models.User) {
 												<i class="ri-shut-down-line"></i>
 											</button>
 										</form>
-										if u.HasRole(models.RoleAccountant) {
-											<form method="post" action={ fmt.Sprintf("/users/%d/can-disburse", u.ID) } class="d-inline">
-												<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
-												<input type="hidden" name="allowed" value={ toggleDisburse(u.CanDisburse) }/>
-												<button
-													type="submit"
-													class="btn btn-sm btn-soft-info btn-icon"
-													title="Autoriser décaissement"
-												>
-													<i class="ri-money-dollar-circle-line"></i>
-												</button>
-											</form>
-										}
 										if u.ID != vm.CurrentUserID {
 											<button
 												type="button"
@@ -159,19 +136,12 @@ func roleNames(u models.User) string {
 	return s
 }
 
-func toggleDisburse(current bool) string {
-	if current {
-		return "0"
-	}
-	return "1"
-}
-
 templ UserForm(vm viewmodels.LayoutVM, user *models.User) {
 	@AppLayout(vm, userFormBody(vm))
 }
 
 templ userFormBody(vm viewmodels.LayoutVM) {
-	@components.PageHeader("Nouvel utilisateur", "Utilisateurs")
+	@components.PageHeader("Nouvel utilisateur", "Utilisateurs", vm.Alert)
 	<div class="card">
 		<div class="card-body">
 			<form method="post" action="/users">
@@ -223,7 +193,7 @@ templ UserEditForm(vm viewmodels.LayoutVM, user *models.User) {
 }
 
 templ userEditFormBody(vm viewmodels.LayoutVM, user *models.User) {
-	@components.PageHeader("Modifier utilisateur", "Utilisateurs")
+	@components.PageHeader("Modifier utilisateur", "Utilisateurs", vm.Alert)
 	<div class="card">
 		<div class="card-body">
 			<form method="post" action={ fmt.Sprintf("/users/%d/edit", user.ID) }>
@@ -278,7 +248,7 @@ templ UserPasswordForm(vm viewmodels.LayoutVM, user *models.User) {
 }
 
 templ userPasswordFormBody(vm viewmodels.LayoutVM, user *models.User) {
-	@components.PageHeader("Modifier mot de passe", "Utilisateurs")
+	@components.PageHeader("Modifier mot de passe", "Utilisateurs", vm.Alert)
 	<div class="card">
 		<div class="card-body">
 			<p class="text-muted mb-3">Utilisateur : <strong>{ user.FullName() }</strong> ({ user.Email })</p>

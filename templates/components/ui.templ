@@ -9,7 +9,7 @@ templ Alert(message string) {
 	}
 }
 
-templ PageHeader(title string, breadcrumb string) {
+templ PageHeader(title string, breadcrumb string, alert string) {
 	<div class="row">
 		<div class="col-12">
 			<div class="page-title-box d-sm-flex align-items-center justify-content-between">
@@ -25,4 +25,5 @@ templ PageHeader(title string, breadcrumb string) {
 			</div>
 		</div>
 	</div>
+	@Alert(alert)
 }

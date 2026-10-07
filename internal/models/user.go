@@ -54,11 +54,11 @@ type User struct {
 	LastName     string `gorm:"type:varchar(100);not null"`
 	Email        string `gorm:"type:varchar(255);uniqueIndex;not null"`
 	Phone        string `gorm:"type:varchar(32)"`
-	PasswordHash string `gorm:"type:varchar(255);not null"`
+	PasswordHash string `gorm:"type:varchar(255);not null" json:"-"`
 	IsActive     bool   `gorm:"not null;default:true;index"`
 	// Superadmin peut autoriser le comptable à décaisser après validation superadmin.
 	CanDisburse bool       `gorm:"not null;default:false"`
-	Roles       []UserRole `gorm:"foreignKey:UserID"`
+	Roles       []UserRole `gorm:"foreignKey:UserID" json:"roles,omitempty"`
 }
 
 func (User) TableName() string { return "users" }

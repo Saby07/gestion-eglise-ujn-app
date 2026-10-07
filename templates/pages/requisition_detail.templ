@@ -7,148 +7,187 @@ import (
 	"fmt"
 )
 
-templ RequisitionDetail(vm viewmodels.LayoutVM, req *models.Requisition, user *models.User, accounts []models.ChurchAccount, canValidate, canCancel, canDisburse, canEdit bool, projectedBalance float64, balanceInsufficient bool) {
-	@AppLayout(vm, requisitionDetailBody(vm, req, accounts, canValidate, canCancel, canDisburse, canEdit, projectedBalance, balanceInsufficient))
-}
-
-templ reqMetaItem(icon, label, value string) {
-	<div class="req-meta-item">
-		<div class="req-meta-icon"><i class={ icon }></i></div>
-		<div>
-			<div class="req-meta-label">{ label }</div>
-			<div class="req-meta-value">{ value }</div>
-		</div>
-	</div>
+templ RequisitionDetail(vm viewmodels.LayoutVM, req *models.Requisition, user *models.User, accounts []models.ChurchAccount, canValidate, canCancel, canDisburse, canEdit, canCreate, canAttachDocs bool, projectedBalance float64, balanceInsufficient bool) {
+	@AppLayout(vm, requisitionDetailBody(vm, req, accounts, canValidate, canCancel, canDisburse, canEdit, canCreate, projectedBalance, balanceInsufficient))
 }
 
 templ reqDocLink(href, icon, label string) {
-	<a href={ href } target="_blank" class="req-doc-link">
-		<i class={ icon }></i>
-		<span>{ label }</span>
-		<i class="ri-external-link-line req-doc-external"></i>
+	<a href={ href } target="_blank" class="req-doc-tile">
+		<span class="req-doc-tile-icon"><i class={ icon }></i></span>
+		<span class="req-doc-tile-label">{ label }</span>
+		<i class="ri-external-link-line req-doc-tile-ext"></i>
 	</a>
 }
 
-templ signatureCanvas(formID string) {
-	<div class="mb-3">
-		<label class="form-label">Signature</label>
-		<canvas class="border rounded w-100 signature-canvas" data-form={ formID } height="120" style="touch-action:none;cursor:crosshair;background:#fff;"></canvas>
-		<input type="hidden" name="signature" class="signature-input"/>
-		<button type="button" class="btn btn-sm btn-soft-secondary mt-2 signature-clear">Effacer</button>
-	</div>
-}
+templ requisitionDetailBody(vm viewmodels.LayoutVM, req *models.Requisition, accounts []models.ChurchAccount, canValidate, canCancel, canDisburse, canEdit, canCreate bool, projectedBalance float64, balanceInsufficient bool) {
+	<div class="req-detail">
+		<div class="req-detail-toolbar mb-3">
+			<div class="req-detail-toolbar-title">
+				@components.PageHeader(req.Title, "Réquisitions", "")
+			</div>
+			<div class="req-detail-toolbar-actions">
+				if canEdit && canCreate {
+					<a href={ fmt.Sprintf("/requisitions/%d/edit", req.ID) } class="btn btn-sm btn-soft-primary">
+						<i class="ri-pencil-line me-1"></i> Modifier
+					</a>
+				}
+				if canValidate {
+					<button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalValidate">
+						<i class="ri-check-line me-1"></i> Valider
+					</button>
+					<button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalReturn">
+						<i class="ri-arrow-go-back-line me-1"></i> Retour
+					</button>
+				}
+				if canDisburse {
+					<button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalDisburse">
+						<i class="ri-money-dollar-circle-line me-1"></i> Décaisser
+					</button>
+				}
+				if canCancel {
+					<button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#modalCancel">
+						<i class="ri-forbid-line me-1"></i> Annuler
+					</button>
+				}
+				if vm.IsAdmin || vm.IsSuperAdmin {
+					<button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalDelete">
+						<i class="ri-delete-bin-line me-1"></i> Supprimer
+					</button>
+				}
+			</div>
+		</div>
 
-templ requisitionDetailBody(vm viewmodels.LayoutVM, req *models.Requisition, accounts []models.ChurchAccount, canValidate, canCancel, canDisburse, canEdit bool, projectedBalance float64, balanceInsufficient bool) {
-	<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-		<div class="flex-grow-1">
-			@components.PageHeader(req.Title, "Réquisitions")
-		</div>
-		<div class="d-flex gap-2">
-			<a href={ fmt.Sprintf("/requisitions/%d/export", req.ID) } class="btn btn-sm btn-soft-info">
-				<i class="ri-download-line me-1"></i> Exporter
-			</a>
-			if canEdit {
-				<a href={ fmt.Sprintf("/requisitions/%d/edit", req.ID) } class="btn btn-sm btn-soft-primary">
-					<i class="ri-pencil-line me-1"></i> Modifier
-				</a>
-			}
-		</div>
-	</div>
-	if balanceInsufficient {
-		<div class="alert alert-warning d-flex align-items-start gap-2">
-			<i class="ri-error-warning-line fs-18 mt-1"></i>
-			<div>
-				<strong>Solde projeté insuffisant.</strong>
-				<p class="mb-0 fs-13">Le solde projeté ({ fmt.Sprintf("%.2f USD", projectedBalance) }) ne couvre pas le montant de cette réquisition ({ fmt.Sprintf("%.2f USD", req.TotalAmount) }).</p>
+		@components.Alert(vm.Alert)
+
+		if balanceInsufficient {
+			<div class="alert alert-warning py-2 px-3 d-flex align-items-center gap-2 mb-3">
+				<i class="ri-error-warning-line fs-16"></i>
+				<span class="fs-13 mb-0">Solde projeté insuffisant ({ fmt.Sprintf("%.2f", projectedBalance) } / { fmt.Sprintf("%.2f USD", req.TotalAmount) }).</span>
 			</div>
-		</div>
-	}
-	@components.WorkflowTracker(viewmodels.BuildWorkflowSteps(req))
-	<div class="card card-bordered border mb-4">
-		<div class="card-body p-4">
-			<div class="row align-items-center g-4">
-				<div class="col-lg-5">
-					<div class="req-amount-block">
-						<span class="text-muted text-uppercase fs-12 fw-medium">Montant total</span>
-						<h2 class="req-amount-value mb-2">{ fmt.Sprintf("%.2f", req.TotalAmount) } <small class="fs-16 text-muted">USD</small></h2>
-						<span class={ "badge fs-12", viewmodels.StatusClass(req.Status, req.CurrentStep) }>{ viewmodels.StepLabel(req.CurrentStep) }</span>
-					</div>
-				</div>
-				<div class="col-lg-7">
-					<div class="row g-3">
-						<div class="col-sm-6 col-xl-4">
-							@reqMetaItem("ri-user-3-line", "Auteur", req.User.FullName())
-						</div>
-						<div class="col-sm-6 col-xl-4">
-							@reqMetaItem("ri-calendar-line", "Date", req.RequisitionDate.Format("02/01/2006"))
-						</div>
-						<div class="col-sm-6 col-xl-4">
-							@reqMetaItem("ri-file-list-3-line", "Articles", fmt.Sprintf("%d ligne(s)", len(req.Items)))
+		}
+
+		<div class="req-detail-hero card border-0 shadow-sm mb-3">
+			<div class="card-body py-3 px-3 px-md-4">
+				<div class="row g-3 align-items-center">
+					<div class="col-md-auto">
+						<div class="req-detail-amount">
+							<span class="req-detail-amount-label">Montant</span>
+							<span class="req-detail-amount-value">{ fmt.Sprintf("%.2f", req.TotalAmount) } <small>USD</small></span>
 						</div>
 					</div>
+					<div class="col-md">
+						<div class="req-detail-meta-grid">
+							<div class="req-detail-meta">
+								<span class="req-detail-meta-k">Statut</span>
+								<span class={ "badge", viewmodels.StatusClass(req.Status, req.CurrentStep) }>{ viewmodels.StepLabel(req.CurrentStep) }</span>
+							</div>
+							<div class="req-detail-meta">
+								<span class="req-detail-meta-k">Auteur</span>
+								<span class="req-detail-meta-v">{ req.User.FullName() }</span>
+							</div>
+							<div class="req-detail-meta">
+								<span class="req-detail-meta-k">Date</span>
+								<span class="req-detail-meta-v">{ req.RequisitionDate.Format("02/01/2006") }</span>
+							</div>
+							<div class=" req-detail-meta">
+								<span class="req-detail-meta-k">Lignes</span>
+								<span class="req-detail-meta-v">{ fmt.Sprintf("%d", len(req.Items)) }</span>
+							</div>
+							if req.Disbursement != nil {
+								<div class="req-detail-meta">
+									<span class="req-detail-meta-k">Décaissé</span>
+									<span class="req-detail-meta-v">{ req.Disbursement.DisbursedAt.Format("02/01/2006") } · { req.Disbursement.PaymentMode.Label() }</span>
+								</div>
+							}
+						</div>
+					</div>
+					<div class="col-md-auto">
+						<button type="button" class="btn btn-sm btn-soft-secondary" data-bs-toggle="modal" data-bs-target="#modalAttachments">
+							<i class="ri-attachment-2 me-1"></i> Pièces jointes
+							if req.InvoicePath != "" || req.DeliveryNotePath != "" || req.PurchaseOrderPath != "" || req.ReceptionNotePath != "" || req.SupplierName != "" || (req.Disbursement != nil && req.Disbursement.ReceiptPath != "") {
+								<span class="badge bg-primary ms-1">voir</span>
+							}
+						</button>
+					</div>
 				</div>
 			</div>
 		</div>
-	</div>
-	<div class="row g-4 mb-5">
-		<div class="col-lg-8">
-			@components.RequisitionTimeline(viewmodels.BuildTimeline(req))
-			<div class="card border-0 shadow-sm mb-0">
-				<div class="card-header bg-transparent border-bottom d-flex align-items-center gap-2 py-3">
-					<i class="ri-list-check-2 text-primary fs-18"></i>
-					<h5 class="card-title mb-0">Détail des articles</h5>
-				</div>
-				<div class="card-body p-0">
-					<div class="table-responsive">
-						<table class="table table-hover align-middle mb-0 req-items-table">
-							<thead>
-								<tr>
-									<th class="ps-4">Désignation</th>
-									<th class="text-end">Qté</th>
-									<th class="text-end">P.U.</th>
-									<th class="text-end pe-4">Total</th>
-								</tr>
-							</thead>
-							<tbody>
-								for _, it := range req.Items {
+
+		@components.WorkflowTracker(viewmodels.BuildWorkflowSteps(req))
+
+		<div class="row g-3 mb-4">
+			<div class="col-lg-5">
+				@components.RequisitionTimeline(viewmodels.BuildTimeline(req))
+			</div>
+			<div class="col-lg-7">
+				<div class="card border-0 shadow-sm h-100 mb-0">
+					<div class="card-header bg-transparent border-bottom d-flex align-items-center justify-content-between py-2 px-3">
+						<div class="d-flex align-items-center gap-2">
+							<i class="ri-list-check-2 text-primary"></i>
+							<h6 class="card-title mb-0 fs-14">Articles</h6>
+						</div>
+						<span class="text-muted fs-12">{ fmt.Sprintf("%d ligne(s)", len(req.Items)) }</span>
+					</div>
+					<div class="card-body p-0">
+						<div class="table-responsive">
+							<table class="table table-sm table-hover align-middle mb-0 req-items-table req-items-table--compact">
+								<thead>
 									<tr>
-										<td class="ps-4 fw-medium">{ it.Designation }</td>
-										<td class="text-end text-muted">{ fmt.Sprintf("%.2f", it.Quantity) }</td>
-										<td class="text-end text-muted">{ fmt.Sprintf("%.2f", it.UnitPrice) }</td>
-										<td class="text-end pe-4 fw-semibold">{ fmt.Sprintf("%.2f", it.TotalPrice) }</td>
+										<th class="ps-3">Désignation</th>
+										<th class="text-end">Qté</th>
+										<th class="text-end">P.U.</th>
+										<th class="text-end pe-3">Total</th>
 									</tr>
-								}
-							</tbody>
-							<tfoot>
-								<tr>
-									<td colspan="3" class="ps-4 text-end fw-semibold text-muted">Total général</td>
-									<td class="text-end pe-4 fw-bold text-primary fs-15">{ fmt.Sprintf("%.2f USD", req.TotalAmount) }</td>
-								</tr>
-							</tfoot>
-						</table>
+								</thead>
+								<tbody>
+									for _, it := range req.Items {
+										<tr>
+											<td class="ps-3 fw-medium">{ it.Designation }</td>
+											<td class="text-end text-muted">{ fmt.Sprintf("%.2f", it.Quantity) }</td>
+											<td class="text-end text-muted">{ fmt.Sprintf("%.2f", it.UnitPrice) }</td>
+											<td class="text-end pe-3 fw-semibold">{ fmt.Sprintf("%.2f", it.TotalPrice) }</td>
+										</tr>
+									}
+								</tbody>
+								<tfoot>
+									<tr>
+										<td colspan="3" class="ps-3 text-end text-muted fs-13">Total</td>
+										<td class="text-end pe-3 fw-bold text-primary">{ fmt.Sprintf("%.2f USD", req.TotalAmount) }</td>
+									</tr>
+								</tfoot>
+							</table>
+						</div>
 					</div>
 				</div>
 			</div>
-			if req.SupplierName != "" || req.InvoicePath != "" {
-				<div class="card border-0 shadow-sm mt-4">
-					<div class="card-header bg-transparent border-bottom d-flex align-items-center gap-2 py-3">
-						<i class="ri-file-paper-2-line text-primary fs-18"></i>
-						<h5 class="card-title mb-0">Justifications & fournisseur</h5>
-					</div>
-					<div class="card-body">
+		</div>
+	</div>
+
+	<!-- Modal pièces jointes -->
+	<div class="modal fade" id="modalAttachments" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-lg">
+			<div class="modal-content">
+				<div class="modal-header py-2">
+					<h5 class="modal-title fs-15"><i class="ri-attachment-2 me-1"></i> Pièces jointes & fournisseur</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+				</div>
+				<div class="modal-body">
+					if req.SupplierName == "" && req.InvoicePath == "" && req.DeliveryNotePath == "" && req.PurchaseOrderPath == "" && req.ReceptionNotePath == "" && (req.Disbursement == nil || req.Disbursement.ReceiptPath == "") {
+						<div class="text-center text-muted py-4">
+							<i class="ri-folder-open-line fs-24 d-block mb-2"></i>
+							Aucune pièce jointe pour cette réquisition.
+						</div>
+					} else {
 						if req.SupplierName != "" {
-							<div class="req-supplier-block mb-4">
-								<div class="d-flex align-items-start gap-3">
-									<div class="req-meta-icon"><i class="ri-store-2-line"></i></div>
-									<div>
-										<div class="fw-semibold mb-1">{ req.SupplierName }</div>
-										if req.SupplierPhone != "" {
-											<div class="text-muted small mb-1"><i class="ri-phone-line me-1"></i>{ req.SupplierPhone }</div>
-										}
-										if req.SupplierAddress != "" {
-											<div class="text-muted small"><i class="ri-map-pin-line me-1"></i>{ req.SupplierAddress }</div>
-										}
-									</div>
+							<div class="req-attach-supplier mb-3">
+								<div class="fw-semibold mb-1">{ req.SupplierName }</div>
+								<div class="d-flex flex-wrap gap-3 text-muted fs-13">
+									if req.SupplierPhone != "" {
+										<span><i class="ri-phone-line me-1"></i>{ req.SupplierPhone }</span>
+									}
+									if req.SupplierAddress != "" {
+										<span><i class="ri-map-pin-line me-1"></i>{ req.SupplierAddress }</span>
+									}
 								</div>
 							</div>
 						}
@@ -165,200 +204,150 @@ templ requisitionDetailBody(vm viewmodels.LayoutVM, req *models.Requisition, acc
 							if req.ReceptionNotePath != "" {
 								@reqDocLink(req.ReceptionNotePath, "ri-inbox-archive-line", "Bon de réception")
 							}
+							if req.Disbursement != nil && req.Disbursement.ReceiptPath != "" {
+								@reqDocLink(req.Disbursement.ReceiptPath, "ri-file-download-line", "Reçu de décaissement")
+							}
 						</div>
-					</div>
+					}
 				</div>
-			}
-		</div>
-		<div class="col-lg-4">
-			<div class="req-actions-sidebar">
-				if canValidate {
-					<div class="card border-0 shadow-sm mb-4 req-action-card req-action-card--validate">
-						<div class="card-header bg-transparent border-bottom py-3">
-							<div class="d-flex align-items-center gap-2">
-								<span class="req-action-icon req-action-icon--success"><i class="ri-checkbox-circle-line"></i></span>
-								<h5 class="card-title mb-0">Validation</h5>
-							</div>
-						</div>
-						<div class="card-body">
-							if vm.IsAccountant && req.CurrentStep == models.StepPendingAccountant {
-								<form method="post" action={ fmt.Sprintf("/requisitions/%d/validate", req.ID) } enctype="multipart/form-data" id="validate-form-accountant">
-									<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
-									<p class="text-muted small mb-3">Les pièces jointes et infos fournisseur sont optionnelles.</p>
-									<div class="mb-2"><label class="form-label">Facture</label><input type="file" name="invoice" class="form-control form-control-sm"/></div>
-									<div class="mb-2"><label class="form-label">Bon de livraison</label><input type="file" name="delivery_note" class="form-control form-control-sm"/></div>
-									<div class="mb-2"><label class="form-label">Bon de commande</label><input type="file" name="purchase_order" class="form-control form-control-sm"/></div>
-									<div class="mb-2"><label class="form-label">Bon de réception</label><input type="file" name="reception_note" class="form-control form-control-sm"/></div>
-									<div class="mb-2"><input name="supplier_name" class="form-control form-control-sm" placeholder="Nom fournisseur"/></div>
-									<div class="mb-2"><input name="supplier_phone" class="form-control form-control-sm" placeholder="Téléphone fournisseur"/></div>
-									<div class="mb-2"><input name="supplier_address" class="form-control form-control-sm" placeholder="Adresse fournisseur"/></div>
-									<div class="mb-3"><textarea name="comment" class="form-control form-control-sm" rows="2" placeholder="Commentaire"></textarea></div>
-									@signatureCanvas("validate-form-accountant")
-									<button class="btn btn-success w-100"><i class="ri-check-line me-1"></i> Valider cette étape</button>
-								</form>
-							} else {
-								<form method="post" action={ fmt.Sprintf("/requisitions/%d/validate", req.ID) } id="validate-form">
-									<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
-									<div class="mb-3"><textarea name="comment" class="form-control form-control-sm" rows="2" placeholder="Commentaire"></textarea></div>
-									@signatureCanvas("validate-form")
-									<button class="btn btn-success w-100"><i class="ri-check-line me-1"></i> Valider cette étape</button>
-								</form>
-							}
-						</div>
-					</div>
-					<div class="card border-0 shadow-sm mb-4 req-action-card">
-						<div class="card-header bg-transparent border-bottom py-3">
-							<div class="d-flex align-items-center gap-2">
-								<span class="req-action-icon req-action-icon--warning"><i class="ri-arrow-go-back-line"></i></span>
-								<h5 class="card-title mb-0">Retour pour correction</h5>
-							</div>
-						</div>
-						<div class="card-body">
-							<form method="post" action={ fmt.Sprintf("/requisitions/%d/return", req.ID) }>
-								<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
-								<div class="mb-3"><textarea name="comment" class="form-control form-control-sm" rows="3" placeholder="Motif du retour" required></textarea></div>
-								<button class="btn btn-warning w-100"><i class="ri-arrow-go-back-line me-1"></i> Renvoyer pour correction</button>
-							</form>
-						</div>
-					</div>
-				}
-				if canDisburse {
-					<div class="card border-0 shadow-sm mb-4 req-action-card req-action-card--disburse">
-						<div class="card-header bg-transparent border-bottom py-3">
-							<div class="d-flex align-items-center gap-2">
-								<span class="req-action-icon req-action-icon--info"><i class="ri-wallet-3-line"></i></span>
-								<h5 class="card-title mb-0">Décaissement</h5>
-							</div>
-						</div>
-						<div class="card-body">
-							<form method="post" action={ fmt.Sprintf("/requisitions/%d/disburse", req.ID) } enctype="multipart/form-data">
-								<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
-								<div class="mb-2">
-									<label class="form-label">Compte *</label>
-									<select name="account_id" class="form-select form-select-sm" required>
-										for _, a := range accounts {
-											<option value={ fmt.Sprintf("%d", a.ID) }>{ a.Name } ({ fmt.Sprintf("%.2f", a.Balance) })</option>
-										}
-									</select>
-								</div>
-								<div class="mb-2">
-									<label class="form-label">Mode de paiement *</label>
-									<select name="payment_mode" class="form-select form-select-sm" required>
-										for _, m := range models.AllPaymentModes() {
-											<option value={ string(m) }>{ m.Label() }</option>
-										}
-									</select>
-								</div>
-								<div class="mb-2"><label class="form-label">Reçu (optionnel)</label><input type="file" name="receipt" class="form-control form-control-sm"/></div>
-								<div class="mb-3"><textarea name="note" class="form-control form-control-sm" rows="2" placeholder="Note"></textarea></div>
-								<button class="btn btn-primary w-100"><i class="ri-money-dollar-circle-line me-1"></i> Décaisser { fmt.Sprintf("%.2f USD", req.TotalAmount) }</button>
-							</form>
-						</div>
-					</div>
-				}
-				if req.Disbursement != nil {
-					<div class="card border-0 shadow-sm mb-4 req-action-card req-action-card--done">
-						<div class="card-header bg-transparent border-bottom py-3">
-							<div class="d-flex align-items-center gap-2">
-								<span class="req-action-icon req-action-icon--primary"><i class="ri-check-double-line"></i></span>
-								<h5 class="card-title mb-0">Décaissement effectué</h5>
-							</div>
-						</div>
-						<div class="card-body">
-							<div class="req-disburse-info">
-								<div class="req-disburse-row">
-									<span class="text-muted">Mode</span>
-									<span class="fw-medium">{ req.Disbursement.PaymentMode.Label() }</span>
-								</div>
-								<div class="req-disburse-row">
-									<span class="text-muted">Par</span>
-									<span class="fw-medium">{ req.Disbursement.DisbursedBy.FullName() }</span>
-								</div>
-								<div class="req-disburse-row">
-									<span class="text-muted">Le</span>
-									<span class="fw-medium">{ req.Disbursement.DisbursedAt.Format("02/01/2006 15:04") }</span>
-								</div>
-							</div>
-							if req.Disbursement.ReceiptPath != "" {
-								<a href={ req.Disbursement.ReceiptPath } target="_blank" class="btn btn-sm btn-soft-primary w-100 mt-3"><i class="ri-file-download-line me-1"></i> Voir le reçu</a>
-							}
-						</div>
-					</div>
-				}
-				if canCancel {
-					<div class="card border-0 shadow-sm mb-4 req-action-card req-action-card--cancel">
-						<div class="card-header bg-transparent border-bottom py-3">
-							<div class="d-flex align-items-center gap-2">
-								<span class="req-action-icon req-action-icon--danger"><i class="ri-close-circle-line"></i></span>
-								<h5 class="card-title mb-0 text-danger">Annuler</h5>
-							</div>
-						</div>
-						<div class="card-body">
-							<form method="post" action={ fmt.Sprintf("/requisitions/%d/cancel", req.ID) }>
-								<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
-								<textarea name="reason" class="form-control form-control-sm mb-3" rows="2" placeholder="Motif d'annulation" required></textarea>
-								<button class="btn btn-danger w-100"><i class="ri-forbid-line me-1"></i> Annuler la réquisition</button>
-							</form>
-						</div>
-					</div>
-				}
-				if vm.IsAdmin || vm.IsSuperAdmin {
-					<form method="post" action={ fmt.Sprintf("/requisitions/%d/delete", req.ID) } onsubmit="return confirm('Supprimer définitivement ?')">
-						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
-						<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Supprimer définitivement</button>
-					</form>
-				}
+				<div class="modal-footer py-2">
+					<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Fermer</button>
+				</div>
 			</div>
 		</div>
 	</div>
-	<script>
-		document.addEventListener('DOMContentLoaded', function () {
-			document.querySelectorAll('.signature-canvas').forEach(function (canvas) {
-				var form = document.getElementById(canvas.dataset.form);
-				if (!form) return;
-				var input = form.querySelector('.signature-input');
-				var clearBtn = form.querySelector('.signature-clear');
-				var ctx = canvas.getContext('2d');
-				var drawing = false;
-				ctx.strokeStyle = '#212529';
-				ctx.lineWidth = 2;
-				ctx.lineCap = 'round';
-				function pos(e) {
-					var rect = canvas.getBoundingClientRect();
-					var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-					var clientY = e.touches ? e.touches[0].clientY : e.clientY;
-					return { x: clientX - rect.left, y: clientY - rect.top };
-				}
-				function start(e) { drawing = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
-				function move(e) {
-					if (!drawing) return;
-					var p = pos(e);
-					ctx.lineTo(p.x, p.y);
-					ctx.stroke();
-					e.preventDefault();
-				}
-				function end() {
-					if (!drawing) return;
-					drawing = false;
-					if (input) input.value = canvas.toDataURL('image/png');
-				}
-				canvas.addEventListener('mousedown', start);
-				canvas.addEventListener('mousemove', move);
-				canvas.addEventListener('mouseup', end);
-				canvas.addEventListener('mouseleave', end);
-				canvas.addEventListener('touchstart', start, { passive: false });
-				canvas.addEventListener('touchmove', move, { passive: false });
-				canvas.addEventListener('touchend', end);
-				if (clearBtn) {
-					clearBtn.addEventListener('click', function () {
-						ctx.clearRect(0, 0, canvas.width, canvas.height);
-						if (input) input.value = '';
-					});
-				}
-				form.addEventListener('submit', function () {
-					if (input && !input.value) input.value = canvas.toDataURL('image/png');
-				});
-			});
-		});
-	</script>
+
+	if canValidate {
+		<div class="modal fade" id="modalValidate" tabindex="-1" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<form method="post" action={ fmt.Sprintf("/requisitions/%d/validate", req.ID) }>
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<div class="modal-header py-2">
+							<h5 class="modal-title fs-15">Confirmer la validation</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+						</div>
+						<div class="modal-body">
+							<p class="mb-0 fs-13">Valider cette étape pour <strong>{ req.Title }</strong> ?</p>
+						</div>
+						<div class="modal-footer py-2">
+							<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Annuler</button>
+							<button type="submit" class="btn btn-sm btn-success"><i class="ri-check-line me-1"></i> Valider</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+		<div class="modal fade" id="modalReturn" tabindex="-1" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<form method="post" action={ fmt.Sprintf("/requisitions/%d/return", req.ID) }>
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<div class="modal-header py-2">
+							<h5 class="modal-title fs-15">Retour pour correction</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+						</div>
+						<div class="modal-body">
+							<label class="form-label">Motif <span class="text-danger">*</span></label>
+							<textarea name="reason" class="form-control form-control-sm" rows="3" placeholder="Indiquez le motif" required></textarea>
+						</div>
+						<div class="modal-footer py-2">
+							<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Fermer</button>
+							<button type="submit" class="btn btn-sm btn-warning"><i class="ri-arrow-go-back-line me-1"></i> Renvoyer</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+	if canDisburse {
+		<div class="modal fade" id="modalDisburse" tabindex="-1" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<form method="post" action={ fmt.Sprintf("/requisitions/%d/disburse", req.ID) } enctype="multipart/form-data">
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<div class="modal-header py-2">
+							<h5 class="modal-title fs-15">Décaissement — { fmt.Sprintf("%.2f USD", req.TotalAmount) }</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+						</div>
+						<div class="modal-body">
+							<div class="mb-2">
+								<label class="form-label">Compte *</label>
+								<select name="account_id" class="form-select form-select-sm" required>
+									for _, a := range accounts {
+										<option value={ fmt.Sprintf("%d", a.ID) }>{ a.Name } ({ fmt.Sprintf("%.2f", a.Balance) })</option>
+									}
+								</select>
+							</div>
+							<div class="mb-2">
+								<label class="form-label">Mode de paiement *</label>
+								<select name="payment_mode" class="form-select form-select-sm" required>
+									for _, m := range models.AllPaymentModes() {
+										<option value={ string(m) }>{ m.Label() }</option>
+									}
+								</select>
+							</div>
+							<div class="mb-2">
+								<label class="form-label">Reçu (optionnel)</label>
+								<input type="file" name="receipt" class="form-control form-control-sm"/>
+							</div>
+							<div class="mb-0">
+								<label class="form-label">Note</label>
+								<textarea name="note" class="form-control form-control-sm" rows="2" placeholder="Note"></textarea>
+							</div>
+						</div>
+						<div class="modal-footer py-2">
+							<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Annuler</button>
+							<button type="submit" class="btn btn-sm btn-primary"><i class="ri-money-dollar-circle-line me-1"></i> Décaisser</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+	if canCancel {
+		<div class="modal fade" id="modalCancel" tabindex="-1" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<form method="post" action={ fmt.Sprintf("/requisitions/%d/cancel", req.ID) }>
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<div class="modal-header py-2">
+							<h5 class="modal-title fs-15 text-danger">Annuler la réquisition</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+						</div>
+						<div class="modal-body">
+							<label class="form-label">Motif <span class="text-danger">*</span></label>
+							<textarea name="reason" class="form-control form-control-sm" rows="3" required></textarea>
+						</div>
+						<div class="modal-footer py-2">
+							<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Fermer</button>
+							<button type="submit" class="btn btn-sm btn-danger">Confirmer l'annulation</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
+	if vm.IsAdmin || vm.IsSuperAdmin {
+		<div class="modal fade" id="modalDelete" tabindex="-1" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<form method="post" action={ fmt.Sprintf("/requisitions/%d/delete", req.ID) }>
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<div class="modal-header py-2">
+							<h5 class="modal-title fs-15 text-danger">Supprimer définitivement</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+						</div>
+						<div class="modal-body">
+							<p class="mb-0 fs-13">Action irréversible. Supprimer <strong>{ req.Title }</strong> ?</p>
+						</div>
+						<div class="modal-footer py-2">
+							<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Annuler</button>
+							<button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	}
 }

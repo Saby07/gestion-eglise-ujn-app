@@ -10,15 +10,15 @@ import (
 )
 
 const (
-	SettingChurchName    = "church_name"
-	SettingTheme         = "theme"
-	SettingReminderDays  = "reminder_days"
-	SettingSMTPHost      = "smtp_host"
-	SettingSMTPPort      = "smtp_port"
-	SettingSMTPUser      = "smtp_user"
-	SettingSMTPPassword  = "smtp_password"
-	SettingSMTPFrom      = "smtp_from"
-	SettingLogoPath      = "logo_path"
+	SettingChurchName   = "church_name"
+	SettingTheme        = "theme"
+	SettingReminderDays = "reminder_days"
+	SettingSMTPHost     = "smtp_host"
+	SettingSMTPPort     = "smtp_port"
+	SettingSMTPUser     = "smtp_user"
+	SettingSMTPPassword = "smtp_password"
+	SettingSMTPFrom     = "smtp_from"
+	SettingLogoPath     = "logo_path"
 )
 
 var knownSettings = []string{
@@ -31,6 +31,7 @@ var knownSettings = []string{
 	SettingSMTPPassword,
 	SettingSMTPFrom,
 	SettingLogoPath,
+	SettingWorkflowSchema,
 }
 
 type SettingsService struct {

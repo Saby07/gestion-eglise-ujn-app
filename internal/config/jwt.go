@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -24,9 +25,9 @@ type JWTConfig struct {
 
 var weakSecrets = map[string]bool{
 	"change-me-to-a-long-random-secret-in-production": true,
-	"secret":      true,
-	"jwt_secret":  true,
-	"changeme":    true,
+	"secret":       true,
+	"jwt_secret":   true,
+	"changeme":     true,
 	"ChangeMe123!": true,
 }
 
@@ -116,7 +117,10 @@ func NewCSRFToken() (string, error) {
 func ValidateCSRF(form, cookie string) error {
 	form = strings.TrimSpace(form)
 	cookie = strings.TrimSpace(cookie)
-	if form == "" || cookie == "" || form != cookie {
+	if form == "" || cookie == "" {
+		return errors.New("csrf invalide")
+	}
+	if subtle.ConstantTimeCompare([]byte(form), []byte(cookie)) != 1 {
 		return errors.New("csrf invalide")
 	}
 	return nil

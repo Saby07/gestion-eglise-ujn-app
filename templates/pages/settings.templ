@@ -4,6 +4,7 @@ import (
 	"eglise_ujn/templates/components"
 	"eglise_ujn/templates/viewmodels"
 	"fmt"
+	"strings"
 )
 
 templ Settings(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) {
@@ -11,7 +12,7 @@ templ Settings(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) {
 }
 
 templ settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) {
-	@components.PageHeader("Paramètres", "Paramètres")
+	@components.PageHeader("Paramètres", "Paramètres", vm.Alert)
 	<div class="row g-4">
 		<div class="col-lg-8">
 			<div class="card">
@@ -60,6 +61,76 @@ templ settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) {
 					</form>
 				</div>
 			</div>
+
+			<div class="card mt-4">
+				<div class="card-header"><h5 class="card-title mb-0">Schéma de validation</h5></div>
+				<div class="card-body">
+					<p class="text-muted fs-13 mb-3">
+						Configurez les capacités par rôle et la chaîne de validation. Le Super Admin reste toujours le dernier validateur.
+						Les réquisitions en cours suivent la nouvelle chaîne pour les étapes restantes.
+					</p>
+					<form method="post" action="/settings/workflow" id="workflow-form">
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<h6 class="mb-2">Capacités par rôle</h6>
+						<div class="table-responsive mb-4">
+							<table class="table table-sm align-middle">
+								<thead class="table-light">
+									<tr>
+										<th>Rôle</th>
+										<th class="text-center">Créer</th>
+										<th class="text-center">PJ fournisseur</th>
+										<th class="text-center">Décaisser</th>
+										<th class="text-center">Approvisionner</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, r := range s.WorkflowRoles {
+										<tr>
+											<td>{ r.Label }</td>
+											<td class="text-center">
+												<input type="checkbox" class="form-check-input" name={ "cap_create_" + r.Key } value="1" checked?={ r.Create }/>
+											</td>
+											<td class="text-center">
+												<input type="checkbox" class="form-check-input" name={ "cap_attach_" + r.Key } value="1" checked?={ r.AttachDocs }/>
+											</td>
+											<td class="text-center">
+												<input type="checkbox" class="form-check-input" name={ "cap_disburse_" + r.Key } value="1" checked?={ r.Disburse }/>
+											</td>
+											<td class="text-center">
+												<input type="checkbox" class="form-check-input" name={ "cap_fund_" + r.Key } value="1" checked?={ r.Fund }/>
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+
+						<h6 class="mb-2">Chaîne de validation (ordre)</h6>
+						<p class="text-muted fs-13">Cochez et ordonnez les validateurs intermédiaires. Le Super Admin est ajouté automatiquement à la fin.</p>
+						<div class="list-group mb-3" id="workflow-chain-list">
+							for _, item := range s.WorkflowChain {
+								<label class="list-group-item d-flex align-items-center gap-3">
+									<input type="checkbox" class="form-check-input workflow-chain-cb" name="validation_chain" value={ item.Key } checked?={ item.Selected } data-order={ fmt.Sprintf("%d", item.Order) }/>
+									<span class="flex-grow-1">{ item.Label }</span>
+									<span class="btn-group btn-group-sm">
+										<button type="button" class="btn btn-soft-secondary workflow-up" title="Monter">↑</button>
+										<button type="button" class="btn btn-soft-secondary workflow-down" title="Descendre">↓</button>
+									</span>
+								</label>
+							}
+							<div class="list-group-item bg-light text-muted">
+								<i class="ri-lock-line me-1"></i> Super Admin (obligatoire — dernier validateur)
+							</div>
+						</div>
+						if len(s.WorkflowPreview) > 0 {
+							<div class="alert alert-info fs-13 mb-3">
+								<strong>Aperçu du flux :</strong> { strings.Join(s.WorkflowPreview, " → ") }
+							</div>
+						}
+						<button class="btn btn-primary"><i class="ri-save-line me-1"></i> Enregistrer le schéma</button>
+					</form>
+				</div>
+			</div>
 		</div>
 		<div class="col-lg-4">
 			<div class="card">
@@ -82,4 +153,50 @@ templ settingsBody(vm viewmodels.LayoutVM, s viewmodels.SettingsVM) {
 			</div>
 		</div>
 	</div>
+	<script>
+		(function () {
+			var list = document.getElementById('workflow-chain-list');
+			if (!list) return;
+			function reorderHidden() {
+				var items = Array.prototype.slice.call(list.querySelectorAll('label.list-group-item'));
+				items.forEach(function (el, idx) {
+					var cb = el.querySelector('.workflow-chain-cb');
+					if (cb) cb.setAttribute('data-order', String(idx));
+				});
+			}
+			list.addEventListener('click', function (e) {
+				var btn = e.target.closest('.workflow-up, .workflow-down');
+				if (!btn) return;
+				e.preventDefault();
+				var row = btn.closest('label.list-group-item');
+				if (!row) return;
+				if (btn.classList.contains('workflow-up') && row.previousElementSibling && row.previousElementSibling.tagName === 'LABEL') {
+					list.insertBefore(row, row.previousElementSibling);
+				}
+				if (btn.classList.contains('workflow-down') && row.nextElementSibling && row.nextElementSibling.tagName === 'LABEL') {
+					list.insertBefore(row.nextElementSibling, row);
+				}
+				reorderHidden();
+			});
+			document.getElementById('workflow-form').addEventListener('submit', function () {
+				var form = this;
+				var checked = [];
+				list.querySelectorAll('label.list-group-item').forEach(function (el) {
+					var cb = el.querySelector('.workflow-chain-cb');
+					if (cb && cb.checked) checked.push(cb.value);
+				});
+				form.querySelectorAll('input[name="validation_chain"]').forEach(function (el) {
+					if (el.type === 'hidden') el.remove();
+				});
+				list.querySelectorAll('.workflow-chain-cb').forEach(function (cb) { cb.disabled = true; });
+				checked.forEach(function (v) {
+					var input = document.createElement('input');
+					input.type = 'hidden';
+					input.name = 'validation_chain';
+					input.value = v;
+					form.appendChild(input);
+				});
+			});
+		})();
+	</script>
 }

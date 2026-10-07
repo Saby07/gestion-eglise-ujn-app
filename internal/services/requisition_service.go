@@ -13,14 +13,15 @@ import (
 )
 
 type RequisitionService struct {
-	db       *gorm.DB
-	notifSvc *NotificationService
-	auditSvc *AuditService
-	emailSvc *EmailService
+	db          *gorm.DB
+	notifSvc    *NotificationService
+	auditSvc    *AuditService
+	emailSvc    *EmailService
+	workflowSvc *WorkflowService
 }
 
-func NewRequisitionService(db *gorm.DB, notifSvc *NotificationService, auditSvc *AuditService, emailSvc *EmailService) *RequisitionService {
-	return &RequisitionService{db: db, notifSvc: notifSvc, auditSvc: auditSvc, emailSvc: emailSvc}
+func NewRequisitionService(db *gorm.DB, notifSvc *NotificationService, auditSvc *AuditService, emailSvc *EmailService, workflowSvc *WorkflowService) *RequisitionService {
+	return &RequisitionService{db: db, notifSvc: notifSvc, auditSvc: auditSvc, emailSvc: emailSvc, workflowSvc: workflowSvc}
 }
 
 type SearchFilter struct {
@@ -132,15 +133,33 @@ func (s *RequisitionService) CanView(user *models.User, req *models.Requisition)
 	return true
 }
 
+func (s *RequisitionService) activeChain(ctx context.Context) []models.ValidationStepKey {
+	if s.workflowSvc == nil {
+		return models.LegacyWorkflowSteps(models.CreatorStaff)
+	}
+	chain, err := s.workflowSvc.EffectiveChain(ctx)
+	if err != nil || len(chain) == 0 {
+		return models.LegacyWorkflowSteps(models.CreatorStaff)
+	}
+	return chain
+}
+
+func (s *RequisitionService) applyChain(ctx context.Context, req *models.Requisition) {
+	if req != nil {
+		req.SetActiveChain(s.activeChain(ctx))
+	}
+}
+
 func (s *RequisitionService) pendingStepForUser(user *models.User) models.RequisitionStep {
-	if user.HasRole(models.RoleAccountant) {
-		return models.StepPendingAccountant
+	if user == nil {
+		return ""
 	}
-	if user.HasRole(models.RoleAdmin) {
-		return models.StepPendingAdmin
-	}
-	if user.HasRole(models.RoleSuperAdmin) {
-		return models.StepPendingSuperAdmin
+	// Prefer the highest-priority role that has a pending step matching the user.
+	order := []models.RoleKey{models.RoleSuperAdmin, models.RoleAdmin, models.RoleAccountant, models.RoleCashier, models.RoleStaff}
+	for _, role := range order {
+		if user.HasRole(role) {
+			return models.PendingStepFor(role)
+		}
 	}
 	return ""
 }
@@ -159,10 +178,23 @@ func (s *RequisitionService) GetByID(ctx context.Context, id uint) (*models.Requ
 	if err != nil {
 		return nil, err
 	}
+	s.applyChain(ctx, &req)
 	return &req, nil
 }
 
-func (s *RequisitionService) Create(ctx context.Context, user *models.User, title string, date time.Time, items []RequisitionItemInput, categoryID, accountID, supplierID *uint) (*models.Requisition, error) {
+func (s *RequisitionService) Create(ctx context.Context, user *models.User, title string, date time.Time, items []RequisitionItemInput, categoryID, accountID, supplierID *uint, extras *AccountantExtras) (*models.Requisition, error) {
+	if user == nil {
+		return nil, errors.New("utilisateur requis")
+	}
+	if s.workflowSvc != nil {
+		ok, err := s.workflowSvc.Can(ctx, user, models.CapCreate)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errors.New("création non autorisée pour votre rôle")
+		}
+	}
 	if title == "" || len(items) == 0 {
 		return nil, errors.New("titre et items requis")
 	}
@@ -185,18 +217,35 @@ func (s *RequisitionService) Create(ctx context.Context, user *models.User, titl
 			TotalPrice:  line,
 		})
 	}
+	chain := s.activeChain(ctx)
+	firstStep := models.ValAccountant
+	if len(chain) > 0 {
+		firstStep = chain[0]
+	}
 	req := models.Requisition{
 		Title:           title,
 		RequisitionDate: date,
 		TotalAmount:     total,
 		CreatorRole:     creatorRole,
-		CurrentStep:     models.StepPendingAccountant,
+		CurrentStep:     s.stepToRequisitionStep(firstStep),
 		Status:          models.ReqStatusOpen,
 		UserID:          user.ID,
 		CategoryID:      categoryID,
 		AccountID:       accountID,
 		SupplierID:      supplierID,
 		Items:           reqItems,
+		ActiveChain:     chain,
+	}
+	if extras != nil {
+		if s.workflowSvc != nil {
+			ok, err := s.workflowSvc.Can(ctx, user, models.CapAttachDocs)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				applyDocExtras(&req, extras)
+			}
+		}
 	}
 	req.CreatedBy = user.FullName()
 	if err := s.db.WithContext(ctx).Create(&req).Error; err != nil {
@@ -207,10 +256,37 @@ func (s *RequisitionService) Create(ctx context.Context, user *models.User, titl
 			fmt.Sprintf("Création réquisition « %s » (%.2f)", req.Title, req.TotalAmount), "")
 	}
 	if s.notifSvc != nil {
-		_ = s.notifSvc.NotifyStep(ctx, req.ID, models.StepPendingAccountant, user.FullName(), req.Title)
+		_ = s.notifSvc.NotifyStep(ctx, req.ID, req.CurrentStep, user.FullName(), req.Title)
 	}
 	s.sendAuthorEmail(ctx, user, fmt.Sprintf("Votre réquisition « %s » a été soumise", req.Title))
 	return &req, nil
+}
+
+func applyDocExtras(req *models.Requisition, extras *AccountantExtras) {
+	if extras == nil || req == nil {
+		return
+	}
+	if extras.InvoicePath != "" {
+		req.InvoicePath = extras.InvoicePath
+	}
+	if extras.DeliveryNotePath != "" {
+		req.DeliveryNotePath = extras.DeliveryNotePath
+	}
+	if extras.PurchaseOrderPath != "" {
+		req.PurchaseOrderPath = extras.PurchaseOrderPath
+	}
+	if extras.ReceptionNotePath != "" {
+		req.ReceptionNotePath = extras.ReceptionNotePath
+	}
+	if extras.SupplierName != "" {
+		req.SupplierName = extras.SupplierName
+	}
+	if extras.SupplierPhone != "" {
+		req.SupplierPhone = extras.SupplierPhone
+	}
+	if extras.SupplierAddress != "" {
+		req.SupplierAddress = extras.SupplierAddress
+	}
 }
 
 type AccountantExtras struct {
@@ -229,7 +305,9 @@ func (s *RequisitionService) CanEdit(user *models.User, req *models.Requisition)
 	if req.Status != models.ReqStatusOpen {
 		return false
 	}
-	if !req.IsValidated(models.ValAccountant) {
+	// Editable until the first validation of the active chain is recorded.
+	chain := req.WorkflowSteps()
+	if len(chain) > 0 && !req.IsValidated(chain[0]) {
 		return req.UserID == user.ID || user.HasRole(models.RoleAdmin) || user.HasRole(models.RoleSuperAdmin)
 	}
 	return false
@@ -247,6 +325,11 @@ func (s *RequisitionService) Update(ctx context.Context, reqID uint, user *model
 		return errors.New("titre et items requis")
 	}
 	wasDraft := req.Status == models.ReqStatusDraft
+	// Load workflow chain before the transaction (SQLite single-conn deadlock).
+	var draftChain []models.ValidationStepKey
+	if wasDraft {
+		draftChain = s.activeChain(ctx)
+	}
 	var total float64
 	reqItems := make([]models.RequisitionItem, 0, len(items))
 	for _, it := range items {
@@ -281,7 +364,11 @@ func (s *RequisitionService) Update(ctx context.Context, reqID uint, user *model
 		}
 		if wasDraft {
 			updates["status"] = models.ReqStatusOpen
-			updates["current_step"] = models.StepPendingAccountant
+			first := models.ValAccountant
+			if len(draftChain) > 0 {
+				first = draftChain[0]
+			}
+			updates["current_step"] = s.stepToRequisitionStep(first)
 			updates["return_reason"] = ""
 			updates["returned_at"] = nil
 			updates["returned_by"] = nil
@@ -299,7 +386,12 @@ func (s *RequisitionService) Update(ctx context.Context, reqID uint, user *model
 			fmt.Sprintf("Modification réquisition « %s »", title), "")
 	}
 	if wasDraft && s.notifSvc != nil {
-		_ = s.notifSvc.NotifyStep(ctx, reqID, models.StepPendingAccountant, user.FullName(), title)
+		updated, _ := s.GetByID(ctx, reqID)
+		step := models.StepPendingAccountant
+		if updated != nil {
+			step = updated.CurrentStep
+		}
+		_ = s.notifSvc.NotifyStep(ctx, reqID, step, user.FullName(), title)
 	}
 	return nil
 }
@@ -398,6 +490,19 @@ func (s *RequisitionService) BuildTimeline(req *models.Requisition) []TimelineEv
 
 func (s *RequisitionService) Validate(ctx context.Context, reqID uint, validator *models.User, comment string, extras *AccountantExtras) error {
 	var validatedStep models.RequisitionStep
+	// Load chain + capabilities BEFORE the transaction: SQLite uses a single
+	// connection and nested queries on s.db inside a tx would deadlock.
+	chain := s.activeChain(ctx)
+	canAttach := false
+	if s.workflowSvc != nil {
+		ok, err := s.workflowSvc.Can(ctx, validator, models.CapAttachDocs)
+		if err != nil {
+			return err
+		}
+		canAttach = ok
+	} else if validator != nil && validator.HasRole(models.RoleAccountant) {
+		canAttach = true
+	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var req models.Requisition
 		if err := tx.First(&req, reqID).Error; err != nil {
@@ -408,6 +513,7 @@ func (s *RequisitionService) Validate(ctx context.Context, reqID uint, validator
 			return err
 		}
 		req.Validations = validations
+		req.SetActiveChain(chain)
 		if req.Status != models.ReqStatusOpen {
 			return errors.New("réquisition non modifiable")
 		}
@@ -418,18 +524,39 @@ func (s *RequisitionService) Validate(ctx context.Context, reqID uint, validator
 		if !s.canValidate(validator, step) {
 			return errors.New("non autorisé pour cette étape")
 		}
-		if req.CurrentStep != s.stepToRequisitionStep(step) {
-			return errors.New("étape de validation incorrecte")
+		expected := s.stepToRequisitionStep(step)
+		// Allow advancing if current_step was stale after schema change (skip removed steps).
+		if req.CurrentStep != expected {
+			if role, ok := models.RoleFromPendingStep(req.CurrentStep); ok {
+				stale := models.ValidationStepKey(role)
+				inChain := false
+				for _, c := range chain {
+					if c == stale {
+						inChain = true
+						break
+					}
+				}
+				if inChain && !req.IsValidated(stale) && stale != step {
+					return errors.New("étape de validation incorrecte")
+				}
+				req.CurrentStep = expected
+			} else if req.CurrentStep != models.StepPendingDisbursement {
+				req.CurrentStep = expected
+			} else {
+				return errors.New("étape de validation incorrecte")
+			}
 		}
-		if step == models.ValAccountant && extras != nil {
-			req.InvoicePath = extras.InvoicePath
-			req.DeliveryNotePath = extras.DeliveryNotePath
-			req.PurchaseOrderPath = extras.PurchaseOrderPath
-			req.ReceptionNotePath = extras.ReceptionNotePath
-			req.SupplierName = extras.SupplierName
-			req.SupplierPhone = extras.SupplierPhone
-			req.SupplierAddress = extras.SupplierAddress
-			if err := tx.Save(&req).Error; err != nil {
+		if canAttach && extras != nil {
+			applyDocExtras(&req, extras)
+			if err := tx.Model(&req).Updates(map[string]interface{}{
+				"invoice_path":        req.InvoicePath,
+				"delivery_note_path":  req.DeliveryNotePath,
+				"purchase_order_path": req.PurchaseOrderPath,
+				"reception_note_path": req.ReceptionNotePath,
+				"supplier_name":       req.SupplierName,
+				"supplier_phone":      req.SupplierPhone,
+				"supplier_address":    req.SupplierAddress,
+			}).Error; err != nil {
 				return err
 			}
 		}
@@ -462,10 +589,8 @@ func (s *RequisitionService) Validate(ctx context.Context, reqID uint, validator
 	if s.notifSvc != nil {
 		_ = s.notifSvc.MarkStepRead(ctx, reqID, validatedStep)
 		updated, loadErr := s.GetByID(ctx, reqID)
-		if loadErr == nil && updated.Status == models.ReqStatusOpen {
+		if loadErr == nil && updated != nil && updated.Status == models.ReqStatusOpen {
 			_ = s.notifSvc.NotifyStep(ctx, updated.ID, updated.CurrentStep, validator.FullName(), updated.Title)
-		}
-		if loadErr == nil {
 			if author, aErr := s.loadUser(ctx, updated.UserID); aErr == nil {
 				s.sendAuthorEmail(ctx, author, fmt.Sprintf("Votre réquisition « %s » a été validée (étape %s)", updated.Title, validatedStep))
 			}
@@ -496,42 +621,18 @@ func computeStepAfterValidation(req *models.Requisition) models.RequisitionStep 
 	if next == "" {
 		return models.StepPendingDisbursement
 	}
-	switch next {
-	case models.ValAccountant:
-		return models.StepPendingAccountant
-	case models.ValAdmin:
-		return models.StepPendingAdmin
-	case models.ValSuperAdmin:
-		return models.StepPendingSuperAdmin
-	default:
-		return models.StepPendingDisbursement
-	}
+	return models.PendingStepFor(models.RoleKey(next))
 }
 
 func (s *RequisitionService) stepToRequisitionStep(step models.ValidationStepKey) models.RequisitionStep {
-	switch step {
-	case models.ValAccountant:
-		return models.StepPendingAccountant
-	case models.ValAdmin:
-		return models.StepPendingAdmin
-	case models.ValSuperAdmin:
-		return models.StepPendingSuperAdmin
-	default:
+	if step == "" {
 		return ""
 	}
+	return models.PendingStepFor(models.RoleKey(step))
 }
 
 func (s *RequisitionService) canValidate(user *models.User, step models.ValidationStepKey) bool {
-	switch step {
-	case models.ValAccountant:
-		return user.HasRole(models.RoleAccountant)
-	case models.ValAdmin:
-		return user.HasRole(models.RoleAdmin) || user.HasRole(models.RoleSuperAdmin)
-	case models.ValSuperAdmin:
-		return user.HasRole(models.RoleSuperAdmin)
-	default:
-		return false
-	}
+	return UserCanValidateStep(user, step)
 }
 
 func (s *RequisitionService) CanCancel(user *models.User, req *models.Requisition) bool {
@@ -541,10 +642,8 @@ func (s *RequisitionService) CanCancel(user *models.User, req *models.Requisitio
 	if user.HasRole(models.RoleSuperAdmin) || user.HasRole(models.RoleAdmin) {
 		return true
 	}
-	if user.HasRole(models.RoleAccountant) {
-		return !req.IsValidated(models.ValAdmin)
-	}
-	return false
+	step := req.NextValidationStep()
+	return step != "" && s.canValidate(user, step)
 }
 
 func (s *RequisitionService) Cancel(ctx context.Context, reqID uint, user *models.User, reason string) error {
@@ -585,14 +684,17 @@ func (s *RequisitionService) Delete(ctx context.Context, reqID uint, user *model
 	return s.db.WithContext(ctx).Delete(req).Error
 }
 
-func (s *RequisitionService) SetAccountantCanDisburse(ctx context.Context, userID uint, allowed bool) error {
-	return s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).
-		Update("can_disburse", allowed).Error
-}
-
 func (s *RequisitionService) Disburse(ctx context.Context, reqID uint, disburser *models.User, accountID uint, mode models.PaymentMode, receiptPath, note string, accountSvc *AccountService) error {
-	if !disburser.HasRole(models.RoleCashier) && !(disburser.HasRole(models.RoleAccountant) && disburser.CanDisburse) {
-		return errors.New("seul le caissier (ou comptable autorisé) peut décaisser")
+	if s.workflowSvc != nil {
+		ok, err := s.workflowSvc.Can(ctx, disburser, models.CapDisburse)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errors.New("décaissement non autorisé pour votre rôle")
+		}
+	} else if !disburser.HasRole(models.RoleCashier) {
+		return errors.New("seul le caissier peut décaisser")
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var req models.Requisition

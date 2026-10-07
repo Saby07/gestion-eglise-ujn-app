@@ -65,7 +65,7 @@ func accountsListBody(vm viewmodels.LayoutVM, accounts []models.ChurchAccount) t
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.PageHeader("Comptes de l'église", "Comptes").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.PageHeader("Comptes de l'église", "Comptes", vm.Alert).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -189,7 +189,7 @@ func accountFormBody(vm viewmodels.LayoutVM) templ.Component {
 			templ_7745c5c3_Var8 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.PageHeader("Nouveau compte", "Comptes").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.PageHeader("Nouveau compte", "Comptes", vm.Alert).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -214,7 +214,7 @@ func accountFormBody(vm viewmodels.LayoutVM) templ.Component {
 	})
 }
 
-func AccountDetail(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64) templ.Component {
+func AccountDetail(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64, canFund bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -235,7 +235,7 @@ func AccountDetail(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []mod
 			templ_7745c5c3_Var10 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = AppLayout(vm, accountDetailBody(vm, acc, hist, balance, projected)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppLayout(vm, accountDetailBody(vm, acc, hist, balance, projected, canFund)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -243,7 +243,7 @@ func AccountDetail(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []mod
 	})
 }
 
-func accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64) templ.Component {
+func accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist []models.AccountTransaction, balance, projected float64, canFund bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -264,7 +264,7 @@ func accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist [
 			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.PageHeader(acc.Name, "Comptes").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.PageHeader(acc.Name, "Comptes", vm.Alert).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -326,7 +326,7 @@ func accountDetailBody(vm viewmodels.LayoutVM, acc *models.ChurchAccount, hist [
 				return templ_7745c5c3_Err
 			}
 		}
-		if vm.IsAccountant {
+		if canFund {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div class=\"card mb-4\"><div class=\"card-header\">Approvisionner le compte</div><div class=\"card-body\"><form method=\"post\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
