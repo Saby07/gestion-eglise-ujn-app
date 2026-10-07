@@ -44,7 +44,8 @@ func NewSettingsService(db *gorm.DB) *SettingsService {
 
 func (s *SettingsService) Get(ctx context.Context, key string) (string, error) {
 	var setting models.AppSetting
-	err := s.db.WithContext(ctx).Where("key = ?", key).First(&setting).Error
+	// map form so GORM quotes the column — "key" is reserved in MySQL.
+	err := s.db.WithContext(ctx).Where(map[string]interface{}{"key": key}).First(&setting).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil
 	}
@@ -59,7 +60,7 @@ func (s *SettingsService) Set(ctx context.Context, key, value string) error {
 		return errors.New("clé de paramètre inconnue")
 	}
 	var setting models.AppSetting
-	err := s.db.WithContext(ctx).Where("key = ?", key).First(&setting).Error
+	err := s.db.WithContext(ctx).Where(map[string]interface{}{"key": key}).First(&setting).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		setting = models.AppSetting{Key: key, Value: value}
 		return s.db.WithContext(ctx).Create(&setting).Error

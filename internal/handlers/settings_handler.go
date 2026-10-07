@@ -81,7 +81,7 @@ func (h *SettingsHandler) SaveWorkflow(c *gin.Context) {
 	schema.ValidationChain = chain
 
 	if err := h.workflowSvc.Save(c.Request.Context(), schema); err != nil {
-		httputil.RedirectFlash(c, "/settings", "Schéma invalide : vérifiez qu'au moins un rôle peut créer et décaisser")
+		httputil.RedirectFlash(c, "/settings", "Impossible d'enregistrer le schéma : "+err.Error())
 		return
 	}
 	cur := middlewares.CurrentUser(c)
